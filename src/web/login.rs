@@ -2,13 +2,13 @@ use axum::{http::StatusCode, response::IntoResponse, routing::post, Json, Router
 use serde::{Deserialize, Serialize};
 use tower_cookies::{Cookie, Cookies};
 
+use crate::error::Result;
+
 #[derive(Serialize, Deserialize)]
 struct LoginPayload {
     pub username: String,
     pub password: String,
 }
-
-use crate::error::Result;
 
 pub fn router() -> Router {
     Router::new().route("/login", post(login))

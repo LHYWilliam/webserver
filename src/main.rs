@@ -12,11 +12,11 @@ use tower_cookies::CookieManagerLayer;
 
 use http::{
     model::ticket::TicketController,
-    {web::login, web::ticket},
+    web::{login, ticket},
 };
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let controller = TicketController::new().await.unwrap();
 
     let app = Router::new()
@@ -27,14 +27,12 @@ async fn main() {
         .layer(middleware::map_request(requset_input))
         .layer(middleware::map_response(response_output));
 
-    let listener = TcpListener::bind("127.0.0.1:3000").await.unwrap();
-    println!(
-        "--> {:<8} - {}\n",
-        "Listener",
-        listener.local_addr().unwrap()
-    );
+    let listener = TcpListener::bind("127.0.0.1:3000").await?;
+    println!("--> {:<8} - {}\n", "Listener", listener.local_addr()?);
 
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app).await?;
+
+    Ok(())
 }
 
 async fn handler_root() -> impl IntoResponse {
