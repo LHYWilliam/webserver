@@ -1,10 +1,10 @@
 use axum::{
+    Json, Router,
     extract::{Query, State},
     http::StatusCode,
     middleware,
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
 };
 use serde::Deserialize;
 

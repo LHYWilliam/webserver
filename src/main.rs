@@ -1,11 +1,11 @@
 use axum::{
+    Router,
     body::Body,
     extract::Request,
     http::StatusCode,
     middleware,
     response::{Html, IntoResponse, Response},
     routing::get,
-    Router,
 };
 use tokio::net::TcpListener;
 use tower_cookies::CookieManagerLayer;
