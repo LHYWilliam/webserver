@@ -1,4 +1,4 @@
-use axum::{Json, Router, http::StatusCode, response::IntoResponse, routing::post};
+use axum::{Json, Router, http::StatusCode, response::IntoResponse, routing};
 use serde::{Deserialize, Serialize};
 use tower_cookies::{Cookie, Cookies};
 
@@ -11,7 +11,7 @@ struct LoginPayload {
 }
 
 pub fn router() -> Router {
-    Router::new().route("/login", post(login))
+    Router::new().route("/login", routing::post(login))
 }
 
 async fn login(cookies: Cookies, Json(payload): Json<LoginPayload>) -> Result<impl IntoResponse> {

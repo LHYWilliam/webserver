@@ -5,7 +5,7 @@ use axum::{
     http::StatusCode,
     middleware,
     response::{Html, IntoResponse, Response},
-    routing::get,
+    routing,
 };
 use tokio::net::TcpListener;
 use tower_cookies::CookieManagerLayer;
@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let controller = TicketController::new().await.unwrap();
 
     let app = Router::new()
-        .route("/", get(handler_root))
+        .route("/", routing::get(handler_root))
         .merge(login::router())
         .merge(ticket::router(controller))
         .layer(CookieManagerLayer::new())

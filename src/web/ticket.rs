@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
     middleware,
     response::IntoResponse,
-    routing::{get, post},
+    routing,
 };
 use serde::Deserialize;
 
@@ -23,9 +23,9 @@ struct IdPayload {
 
 pub fn router(controller: TicketController) -> Router {
     axum::Router::new()
-        .route("/ticket", post(create))
-        .route("/ticket", get(list))
-        .route("/ticket", axum::routing::delete(delete))
+        .route("/ticket", routing::post(create))
+        .route("/ticket", routing::get(list))
+        .route("/ticket", routing::delete(delete))
         .layer(middleware::from_fn(auth::auth))
         .with_state(controller)
 }
