@@ -29,7 +29,7 @@ impl TicketController {
 
         let ticket = Ticket {
             id: tickets.len() as u64,
-            title: title,
+            title,
         };
 
         tickets.push(Some(ticket.clone()));
