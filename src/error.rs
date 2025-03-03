@@ -11,7 +11,7 @@ pub enum Error {
     InvalidAuth,
     WorngUsernameOrPassword,
 
-    SQLiteErrorRegisterFailed { username: String },
+    SQLiteErrorInsertFailed,
 }
 
 impl IntoResponse for Error {
@@ -31,9 +31,9 @@ impl IntoResponse for Error {
                 (StatusCode::UNAUTHORIZED, Html("Worng username or password")).into_response()
             }
 
-            Error::SQLiteErrorRegisterFailed { username } => (
+            Error::SQLiteErrorInsertFailed => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Html(format!("Failed to register user {username}")),
+                Html("SQLite insert failed"),
             )
                 .into_response(),
         }

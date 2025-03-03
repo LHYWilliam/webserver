@@ -39,9 +39,7 @@ async fn register(
     )
     .execute(&pool)
     .await
-    .map_err(|_| Error::SQLiteErrorRegisterFailed {
-        username: payload.username.clone(),
-    })?;
+    .map_err(|_| Error::SQLiteErrorInsertFailed)?;
 
     match result.rows_affected() {
         0 => Ok((
