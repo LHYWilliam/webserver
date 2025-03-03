@@ -1,3 +1,5 @@
+use std::env;
+
 use axum::{
     Router,
     body::Body,
@@ -7,20 +9,25 @@ use axum::{
     response::{Html, IntoResponse, Response},
     routing,
 };
+use sqlx::SqlitePool;
 use tokio::net::TcpListener;
 use tower_cookies::CookieManagerLayer;
 
 use http::{
     model::ticket::TicketController,
-    web::{login, ticket},
+    web::{login, register, ticket},
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenv::dotenv().ok();
+
     let controller = TicketController::new().await.unwrap();
+    let pool = SqlitePool::connect(&env::var("DATABASE_URL")?).await?;
 
     let app = Router::new()
         .route("/", routing::get(handler_root))
+        .merge(register::router(pool))
         .merge(login::router())
         .merge(ticket::router(controller))
         .layer(CookieManagerLayer::new())

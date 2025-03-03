@@ -9,6 +9,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     TicketNotFound { id: u64 },
     InvalidAuth,
+
+    SQLiteErrorRegisterFailed { username: String },
 }
 
 impl IntoResponse for Error {
@@ -23,6 +25,12 @@ impl IntoResponse for Error {
                 .into_response(),
 
             Error::InvalidAuth => (StatusCode::UNAUTHORIZED, Html("Unauthorized")).into_response(),
+
+            Error::SQLiteErrorRegisterFailed { username } => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(format!("Failed to register user {username}")),
+            )
+                .into_response(),
         }
     }
 }
