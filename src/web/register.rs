@@ -8,7 +8,7 @@ use axum::{
 use serde::Deserialize;
 use sqlx::{Pool, Sqlite};
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 
 #[derive(Deserialize)]
 struct RegisterPayload {
@@ -39,7 +39,7 @@ async fn register(
     )
     .execute(&pool)
     .await
-    .map_err(|_| crate::error::Error::SQLiteErrorRegisterFailed {
+    .map_err(|_| Error::SQLiteErrorRegisterFailed {
         username: payload.username.clone(),
     })?;
 

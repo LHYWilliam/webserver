@@ -27,8 +27,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = Router::new()
         .route("/", routing::get(handler_root))
-        .merge(register::router(pool))
-        .merge(login::router())
+        .merge(register::router(pool.clone()))
+        .merge(login::router(pool.clone()))
         .merge(ticket::router(controller))
         .layer(CookieManagerLayer::new())
         .layer(middleware::map_request(requset_input))
