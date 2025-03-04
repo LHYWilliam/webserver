@@ -1,18 +1,18 @@
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Pool, Sqlite};
+use sqlx::{Pool, Sqlite};
 use tower_cookies::{Cookie, Cookies};
 
 use crate::error::{Error, Result};
 
-#[derive(Serialize, Deserialize, FromRow, PartialEq)]
+pub fn router(pool: Pool<Sqlite>) -> Router {
+    Router::new().route("/login", routing::post(login).with_state(pool))
+}
+
+#[derive(Serialize, Deserialize)]
 struct LoginPayload {
     pub username: String,
     pub password: String,
-}
-
-pub fn router(pool: Pool<Sqlite>) -> Router {
-    Router::new().route("/login", routing::post(login).with_state(pool))
 }
 
 async fn login(

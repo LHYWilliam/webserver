@@ -10,16 +10,16 @@ use sqlx::{Pool, Sqlite};
 
 use crate::error::{Error, Result};
 
-#[derive(Deserialize)]
-struct RegisterPayload {
-    username: String,
-    password: String,
-}
-
 pub fn router(pool: Pool<Sqlite>) -> Router {
     axum::Router::new()
         .route("/register", routing::post(register))
         .with_state(pool)
+}
+
+#[derive(Deserialize)]
+struct RegisterPayload {
+    username: String,
+    password: String,
 }
 
 async fn register(
