@@ -12,6 +12,7 @@ pub enum Error {
     WorngUsernameOrPassword,
 
     SQLiteErrorInsertFailed,
+    TicketError(String),
 }
 
 impl IntoResponse for Error {
@@ -36,6 +37,10 @@ impl IntoResponse for Error {
                 Html("SQLite insert failed"),
             )
                 .into_response(),
+
+            Error::TicketError(msg) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, Html(msg)).into_response()
+            }
         }
     }
 }

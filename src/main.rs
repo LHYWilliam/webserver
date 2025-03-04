@@ -13,23 +13,19 @@ use sqlx::SqlitePool;
 use tokio::net::TcpListener;
 use tower_cookies::CookieManagerLayer;
 
-use http::{
-    model::ticket::TicketController,
-    web::{login, register, ticket},
-};
+use http::web::{login, register, ticket};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv::dotenv().ok();
 
-    let controller = TicketController::new().await.unwrap();
     let pool = SqlitePool::connect(&env::var("DATABASE_URL")?).await?;
 
     let app = Router::new()
         .route("/", routing::get(handler_root))
         .merge(register::router(pool.clone()))
         .merge(login::router(pool.clone()))
-        .merge(ticket::router(controller))
+        .merge(ticket::router(pool.clone()))
         .layer(CookieManagerLayer::new())
         .layer(middleware::map_request(requset_input))
         .layer(middleware::map_response(response_output));

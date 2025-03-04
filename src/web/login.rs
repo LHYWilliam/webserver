@@ -24,7 +24,7 @@ async fn login(
 
     sqlx::query!(
         r#"
-        select username, password
+        select *
         from users
         where username = ?
         and password = ?
@@ -37,7 +37,11 @@ async fn login(
     .map_err(|_| Error::WorngUsernameOrPassword)?;
 
     cookies.add(Cookie::new(
+        "username".to_string(),
         payload.username.clone(),
+    ));
+    cookies.add(Cookie::new(
+        "password".to_string(),
         payload.password.clone(),
     ));
 

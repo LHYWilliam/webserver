@@ -1,5 +1,6 @@
 .env
 *.db*
 
+/migrations
 /target
 /tests
