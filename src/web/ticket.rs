@@ -49,7 +49,7 @@ async fn create(
     )
     .execute(&pool)
     .await
-    .map_err(|_| Error::TicketError("Ticket create failed".to_string()))?;
+    .map_err(|_| Error::SQLiteErrorInsertFailed)?;
 
     let ticket = sqlx::query_as!(
         Ticket,
@@ -62,7 +62,7 @@ async fn create(
     )
     .fetch_one(&pool)
     .await
-    .map_err(|_| Error::TicketError("Ticket create failed".to_string()))?;
+    .map_err(|_| Error::TicketErrorCreateFailed)?;
 
     Ok((StatusCode::CREATED, Json(ticket)))
 }
@@ -79,7 +79,7 @@ async fn list(State(pool): State<Pool<Sqlite>>) -> Result<impl IntoResponse> {
     )
     .fetch_all(&pool)
     .await
-    .map_err(|_| Error::TicketError("No Tickets to list".to_string()))?;
+    .map_err(|_| Error::SQLiteErrorSelectFailed)?;
 
     Ok((StatusCode::OK, Json(tickets)))
 }
@@ -106,7 +106,7 @@ async fn delete(
     )
     .fetch_one(&pool)
     .await
-    .map_err(|_| Error::TicketError(format!("Ticket width id {} not found", payload.id)))?;
+    .map_err(|_| Error::TicketErrorIdNotFound { id: payload.id })?;
 
     sqlx::query!(
         r#"
@@ -117,7 +117,7 @@ async fn delete(
     )
     .execute(&pool)
     .await
-    .map_err(|_| Error::TicketError(format!("Ticket width id {} not found", payload.id)))?;
+    .map_err(|_| Error::SQLiteErrorDeleteFailed)?;
 
     Ok((StatusCode::OK, Json(ticket)))
 }

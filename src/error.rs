@@ -7,12 +7,15 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
-    TicketNotFound { id: u64 },
-    InvalidAuth,
-    WorngUsernameOrPassword,
+    AuthErrorMissCookie,
+    AuthErrorWorngUsernameOrPassword,
+
+    TicketErrorCreateFailed,
+    TicketErrorIdNotFound { id: i64 },
 
     SQLiteErrorInsertFailed,
-    TicketError(String),
+    SQLiteErrorSelectFailed,
+    SQLiteErrorDeleteFailed,
 }
 
 impl IntoResponse for Error {
@@ -20,17 +23,27 @@ impl IntoResponse for Error {
         println!("--> {:<8} - {self:?}", "Error");
 
         match self {
-            Error::TicketNotFound { id } => (
+            Error::AuthErrorMissCookie => (
+                StatusCode::UNAUTHORIZED,
+                Html("Miss username or password cookie"),
+            )
+                .into_response(),
+
+            Error::AuthErrorWorngUsernameOrPassword => {
+                (StatusCode::UNAUTHORIZED, Html("Worng username or password")).into_response()
+            }
+
+            Error::TicketErrorCreateFailed => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html("Ticket create failed"),
+            )
+                .into_response(),
+
+            Error::TicketErrorIdNotFound { id } => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Html(format!("Ticket with id {id} not found")),
             )
                 .into_response(),
-
-            Error::InvalidAuth => (StatusCode::UNAUTHORIZED, Html("Unauthorized")).into_response(),
-
-            Error::WorngUsernameOrPassword => {
-                (StatusCode::UNAUTHORIZED, Html("Worng username or password")).into_response()
-            }
 
             Error::SQLiteErrorInsertFailed => (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -38,9 +51,17 @@ impl IntoResponse for Error {
             )
                 .into_response(),
 
-            Error::TicketError(msg) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, Html(msg)).into_response()
-            }
+            Error::SQLiteErrorSelectFailed => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html("SQLite select failed"),
+            )
+                .into_response(),
+
+            Error::SQLiteErrorDeleteFailed => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html("SQLite delete failed"),
+            )
+                .into_response(),
         }
     }
 }

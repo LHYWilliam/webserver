@@ -23,12 +23,12 @@ pub async fn auth(
 
     let username = cookies
         .get("username")
-        .ok_or(Error::InvalidAuth)?
+        .ok_or(Error::AuthErrorMissCookie)?
         .value()
         .to_string();
     let password = cookies
         .get("password")
-        .ok_or(Error::InvalidAuth)?
+        .ok_or(Error::AuthErrorMissCookie)?
         .value()
         .to_string();
 
@@ -43,10 +43,10 @@ pub async fn auth(
     )
     .fetch_one(&pool)
     .await
-    .map_err(|_| Error::WorngUsernameOrPassword)?;
+    .map_err(|_| Error::AuthErrorWorngUsernameOrPassword)?;
 
     match password_query.password == password {
         true => Ok(next.run(requset).await),
-        false => Err(Error::WorngUsernameOrPassword),
+        false => Err(Error::AuthErrorWorngUsernameOrPassword),
     }
 }

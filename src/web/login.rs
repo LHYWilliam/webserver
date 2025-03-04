@@ -34,7 +34,7 @@ async fn login(
     )
     .fetch_one(&pool)
     .await
-    .map_err(|_| Error::WorngUsernameOrPassword)?;
+    .map_err(|_| Error::AuthErrorWorngUsernameOrPassword)?;
 
     cookies.add(Cookie::new(
         "username".to_string(),
