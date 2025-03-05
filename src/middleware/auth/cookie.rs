@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use axum::{
     RequestPartsExt,
     extract::{FromRef, FromRequestParts, State},
@@ -7,7 +9,15 @@ use sqlx::{Pool, Sqlite};
 
 use crate::error::{Error, Result};
 
-pub struct Cookies;
+pub struct Cookies(tower_cookies::Cookies);
+
+impl Deref for Cookies {
+    type Target = tower_cookies::Cookies;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl<S> FromRequestParts<S> for Cookies
 where
@@ -47,6 +57,6 @@ where
         .await
         .map_err(|_| Error::AuthErrorInvalidCookie)?;
 
-        Ok(Cookies)
+        Ok(Cookies(cookies))
     }
 }
