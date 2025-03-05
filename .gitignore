@@ -1,6 +1,8 @@
 .env
 *.db*
 
-/migrations
-/target
-/tests
+back
+tests
+target
+.vscode
+migrations
