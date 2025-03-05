@@ -22,16 +22,16 @@ where
         let cookies = parts
             .extract::<tower_cookies::Cookies>()
             .await
-            .map_err(|_| Error::AuthErrorMissCookie)?;
+            .map_err(|_| Error::AuthErrorInvalidCookie)?;
 
         let State(pool) = parts
             .extract_with_state::<State<Pool<Sqlite>>, S>(state)
             .await
-            .map_err(|_| Error::AuthErrorInvalidCookie)?;
+            .map_err(|_| Error::ExtractorError)?;
 
         let username = cookies
             .get("user")
-            .ok_or(Error::AuthErrorMissCookie)?
+            .ok_or(Error::AuthErrorInvalidCookie)?
             .value()
             .to_string();
 

@@ -38,7 +38,7 @@ async fn login(
     )
     .fetch_one(&pool)
     .await
-    .map_err(|_| Error::AuthErrorInvalidUsernameOrPassword)?;
+    .map_err(|_| Error::AuthErrorWrongUsernameOrPassword)?;
 
     cookies.add(Cookie::new("user".to_string(), payload.username.clone()));
 

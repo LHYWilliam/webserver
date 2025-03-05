@@ -7,10 +7,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
-    AuthErrorMissCookie,
     AuthErrorInvalidToken,
     AuthErrorInvalidCookie,
-    AuthErrorInvalidUsernameOrPassword,
+    AuthErrorWrongUsernameOrPassword,
 
     TicketErrorCreateFailed,
     TicketErrorIdNotFound { id: i64 },
@@ -18,6 +17,8 @@ pub enum Error {
     SQLiteErrorInsertFailed,
     SQLiteErrorSelectFailed,
     SQLiteErrorDeleteFailed,
+
+    ExtractorError,
 }
 
 impl IntoResponse for Error {
@@ -25,10 +26,6 @@ impl IntoResponse for Error {
         println!("--> {:<8} - {self:?}", "Error");
 
         match self {
-            Error::AuthErrorMissCookie => {
-                (StatusCode::BAD_REQUEST, Html("Miss cookie".to_string()))
-            }
-
             Error::AuthErrorInvalidToken => {
                 (StatusCode::UNAUTHORIZED, Html("Invalid token".to_string()))
             }
@@ -37,7 +34,7 @@ impl IntoResponse for Error {
                 (StatusCode::UNAUTHORIZED, Html("Invalid Cookie".to_string()))
             }
 
-            Error::AuthErrorInvalidUsernameOrPassword => (
+            Error::AuthErrorWrongUsernameOrPassword => (
                 StatusCode::UNAUTHORIZED,
                 Html("Invalid username or password".to_string()),
             ),
@@ -61,6 +58,11 @@ impl IntoResponse for Error {
             Error::SQLiteErrorDeleteFailed => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Html("SQLite delete failed".to_string()),
+            ),
+
+            Error::ExtractorError => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html("Extractor error".to_string()),
             ),
         }
         .into_response()

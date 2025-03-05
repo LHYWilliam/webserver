@@ -50,7 +50,7 @@ async fn requset_input(requset: Request<Body>) -> Request<Body> {
     requset
 }
 
-async fn response_output(response: Response<Body>) -> Response<Body> {
+async fn response_output(response: Response) -> impl IntoResponse {
     println!("--> {:<8} - response output\n", "Mapper");
 
     response
