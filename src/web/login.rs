@@ -6,7 +6,7 @@ use tower_cookies::{Cookie, Cookies};
 
 use crate::{
     error::{Error, Result},
-    middleware::jwt::{AuthBody, Claims},
+    middleware::auth::jwt::{AuthBody, Claims},
 };
 
 pub fn router(pool: Pool<Sqlite>) -> Router {

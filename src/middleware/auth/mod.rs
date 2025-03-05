@@ -1,8 +1,11 @@
+pub mod cookie;
+pub mod jwt;
+
 use axum::{extract::Request, middleware::Next, response::IntoResponse};
 
 use crate::{
     error::Result,
-    middleware::{cookie::Cookies, jwt::Claims},
+    middleware::auth::{cookie::Cookies, jwt::Claims},
 };
 
 pub async fn auth(
