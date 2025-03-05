@@ -8,7 +8,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     AuthErrorMissCookie,
-    AuthErrorWorngUsernameOrPassword,
+    AuthErrorInvalidToken,
+    AuthErrorInvalidCookie,
+    AuthErrorInvalidUsernameOrPassword,
 
     TicketErrorCreateFailed,
     TicketErrorIdNotFound { id: i64 },
@@ -23,13 +25,21 @@ impl IntoResponse for Error {
         println!("--> {:<8} - {self:?}", "Error");
 
         match self {
-            Error::AuthErrorMissCookie => (
-                StatusCode::BAD_REQUEST,
-                Html("Miss username or password cookie".to_string()),
-            ),
-            Error::AuthErrorWorngUsernameOrPassword => (
+            Error::AuthErrorMissCookie => {
+                (StatusCode::BAD_REQUEST, Html("Miss cookie".to_string()))
+            }
+
+            Error::AuthErrorInvalidToken => {
+                (StatusCode::UNAUTHORIZED, Html("Invalid token".to_string()))
+            }
+
+            Error::AuthErrorInvalidCookie => {
+                (StatusCode::UNAUTHORIZED, Html("Invalid Cookie".to_string()))
+            }
+
+            Error::AuthErrorInvalidUsernameOrPassword => (
                 StatusCode::UNAUTHORIZED,
-                Html("Worng username or password".to_string()),
+                Html("Invalid username or password".to_string()),
             ),
 
             Error::TicketErrorCreateFailed => (

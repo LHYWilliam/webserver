@@ -3,17 +3,16 @@ use axum::{
     middleware::Next,
     response::IntoResponse,
 };
-use sqlx::{FromRow, Pool, Sqlite};
+use sqlx::{Pool, Sqlite};
 use tower_cookies::Cookies;
 
-use crate::error::{Error, Result};
-
-#[derive(FromRow)]
-struct Password {
-    pub password: String,
-}
+use crate::{
+    error::{Error, Result},
+    middleware::jwt::Claims,
+};
 
 pub async fn auth(
+    _claims: Claims,
     cookies: Cookies,
     State(pool): State<Pool<Sqlite>>,
     requset: Request,
@@ -22,20 +21,14 @@ pub async fn auth(
     println!("--> {:<8} - auth", "Middleware");
 
     let username = cookies
-        .get("username")
-        .ok_or(Error::AuthErrorMissCookie)?
-        .value()
-        .to_string();
-    let password = cookies
-        .get("password")
+        .get("user")
         .ok_or(Error::AuthErrorMissCookie)?
         .value()
         .to_string();
 
-    let password_query = sqlx::query_as!(
-        Password,
+    sqlx::query!(
         r#"
-        select password
+        select *
         from users
         where username = ?
         "#,
@@ -43,10 +36,7 @@ pub async fn auth(
     )
     .fetch_one(&pool)
     .await
-    .map_err(|_| Error::AuthErrorWorngUsernameOrPassword)?;
+    .map_err(|_| Error::AuthErrorInvalidCookie)?;
 
-    match password_query.password == password {
-        true => Ok(next.run(requset).await),
-        false => Err(Error::AuthErrorWorngUsernameOrPassword),
-    }
+    Ok(next.run(requset).await)
 }
