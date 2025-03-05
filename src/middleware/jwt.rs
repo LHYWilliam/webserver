@@ -21,7 +21,7 @@ where
     type Rejection = Error;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self> {
-        println!("--> {:<8} - jwt", "Middleware");
+        println!("--> {:<8} - jwt", "Extractor");
 
         let TypedHeader(Authorization(bearer)) = parts
             .extract::<TypedHeader<Authorization<Bearer>>>()
