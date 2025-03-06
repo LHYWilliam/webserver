@@ -1,4 +1,5 @@
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
+use chrono::{Duration, Utc};
 use jsonwebtoken::{EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite};
@@ -44,7 +45,7 @@ async fn login(
 
     let claims = Claims {
         sub: payload.username.clone(),
-        exp: 10000000000,
+        exp: (Utc::now() + Duration::minutes(1)).timestamp() as usize,
     };
 
     let token = jsonwebtoken::encode(

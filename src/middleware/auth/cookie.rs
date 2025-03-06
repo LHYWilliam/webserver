@@ -41,9 +41,8 @@ where
 
         let username = cookies
             .get("user")
-            .ok_or(Error::AuthErrorInvalidCookie)?
-            .value()
-            .to_string();
+            .map(|c| c.value().to_string())
+            .ok_or(Error::AuthErrorInvalidCookie)?;
 
         sqlx::query!(
             r#"
