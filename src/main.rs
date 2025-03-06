@@ -6,7 +6,7 @@ use axum::{
     extract::Request,
     http::StatusCode,
     middleware,
-    response::{Html, IntoResponse, Response},
+    response::{IntoResponse, Response},
     routing,
 };
 use sqlx::SqlitePool;
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn handler_root() -> impl IntoResponse {
     println!("--> {:<8} - handle get /", "Handler");
 
-    (StatusCode::OK, Html("Hello, World!"))
+    (StatusCode::OK, "Hello, World!")
 }
 
 async fn requset_input(requset: Request<Body>) -> Request<Body> {

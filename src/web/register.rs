@@ -1,10 +1,4 @@
-use axum::{
-    Json, Router,
-    extract::State,
-    http::StatusCode,
-    response::{Html, IntoResponse},
-    routing,
-};
+use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
 use serde::Deserialize;
 use sqlx::{Pool, Sqlite};
 
@@ -44,11 +38,11 @@ async fn register(
     match result.rows_affected() {
         0 => Ok((
             StatusCode::CONFLICT,
-            Html(format!("User {} already exists", payload.username)),
+            format!("User {} already exists", payload.username),
         )),
         _ => Ok((
             StatusCode::CREATED,
-            Html(format!("User {} created", payload.username)),
+            format!("User {} created", payload.username),
         )),
     }
 }
