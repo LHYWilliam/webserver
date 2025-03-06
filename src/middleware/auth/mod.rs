@@ -14,7 +14,7 @@ pub async fn auth(
     requset: Request,
     next: Next,
 ) -> Result<impl IntoResponse> {
-    println!("--> {:<8} - auth", "Middleware");
+    println!("[{:^12}] - auth", "Middleware");
 
     Ok(next.run(requset).await)
 }

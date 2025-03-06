@@ -38,7 +38,7 @@ async fn create(
     State(pool): State<Pool<Sqlite>>,
     Json(payload): Json<TitlePayload>,
 ) -> Result<impl IntoResponse> {
-    println!("--> {:<8} - handle post /ticket", "Handler");
+    println!("[{:^12}] - handle post /ticket", "Handler");
 
     sqlx::query!(
         r#"
@@ -68,7 +68,7 @@ async fn create(
 }
 
 async fn list(State(pool): State<Pool<Sqlite>>) -> Result<impl IntoResponse> {
-    println!("--> {:<8} - handle get /ticket", "Handler");
+    println!("[{:^12}] - handle get /ticket", "Handler");
 
     let tickets = sqlx::query_as!(
         Ticket,
@@ -93,7 +93,7 @@ async fn delete(
     State(pool): State<Pool<Sqlite>>,
     Query(payload): Query<IdPayload>,
 ) -> Result<impl IntoResponse> {
-    println!("--> {:<8} - handle delete /ticket", "Handler");
+    println!("[{:^12}] - handle delete /ticket", "Handler");
 
     let ticket = sqlx::query_as!(
         Ticket,

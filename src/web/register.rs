@@ -20,7 +20,7 @@ async fn register(
     State(pool): State<Pool<Sqlite>>,
     Json(payload): Json<RegisterPayload>,
 ) -> Result<impl IntoResponse> {
-    println!("--> {:<8} - handle post /register", "Handler");
+    println!("[{:^12}] - handle post /register", "Handler");
 
     let result = sqlx::query!(
         r#"

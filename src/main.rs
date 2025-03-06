@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(middleware::map_response(response_output));
 
     let listener = TcpListener::bind("127.0.0.1:3000").await?;
-    println!("--> {:<8} - {}\n", "Listener", listener.local_addr()?);
+    println!("[{:^12}] - {}\n", "Listener", listener.local_addr()?);
 
     axum::serve(listener, app).await?;
 
@@ -39,19 +39,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn handler_root() -> impl IntoResponse {
-    println!("--> {:<8} - handle get /", "Handler");
+    println!("[{:^12}] - handle get /", "Handler");
 
     (StatusCode::OK, "Hello, World!")
 }
 
 async fn requset_input(requset: Request<Body>) -> Request<Body> {
-    println!("--> {:<8} - requset input", "Mapper");
+    println!("[{:^12}] - requset input", "Mapper");
 
     requset
 }
 
 async fn response_output(response: Response) -> impl IntoResponse {
-    println!("--> {:<8} - response output\n", "Mapper");
+    println!("[{:^12}] - response output\n", "Mapper");
 
     response
 }

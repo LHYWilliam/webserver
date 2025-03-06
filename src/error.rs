@@ -23,7 +23,7 @@ pub enum Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        println!("--> {:<8} - {self:?}", "Error");
+        println!("[{:^12}] - {self:?}", "Error");
 
         match self {
             Error::AuthErrorInvalidToken => (StatusCode::UNAUTHORIZED, "Invalid token".to_string()),
