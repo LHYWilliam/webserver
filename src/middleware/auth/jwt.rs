@@ -1,4 +1,4 @@
-use axum::{RequestPartsExt, extract::FromRequestParts, http::request::Parts};
+use axum::{extract::FromRequestParts, http::request::Parts};
 use axum_extra::{
     TypedHeader,
     headers::{Authorization, authorization::Bearer},
@@ -20,13 +20,13 @@ where
 {
     type Rejection = Error;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self> {
         println!("[{:^12}] - jwt", "Extractor");
 
-        let TypedHeader(Authorization(bearer)) = parts
-            .extract::<TypedHeader<Authorization<Bearer>>>()
-            .await
-            .map_err(|_| Error::AuthErrorInvalidToken)?;
+        let TypedHeader(Authorization(bearer)) =
+            TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state)
+                .await
+                .map_err(|_| Error::AuthErrorInvalidToken)?;
 
         let token_data = jsonwebtoken::decode(
             bearer.token(),

@@ -1,7 +1,6 @@
 use std::ops::Deref;
 
 use axum::{
-    RequestPartsExt,
     extract::{FromRef, FromRequestParts, State},
     http::request::Parts,
 };
@@ -29,13 +28,11 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self> {
         println!("[{:^12}] - Cookie", "Extractor");
 
-        let cookies = parts
-            .extract::<tower_cookies::Cookies>()
+        let cookies = tower_cookies::Cookies::from_request_parts(parts, state)
             .await
             .map_err(|_| Error::AuthErrorInvalidCookie)?;
 
-        let State(pool) = parts
-            .extract_with_state::<State<Pool<Sqlite>>, S>(state)
+        let State(pool) = State::<Pool<Sqlite>>::from_request_parts(parts, state)
             .await
             .map_err(|_| Error::ExtractorError)?;
 

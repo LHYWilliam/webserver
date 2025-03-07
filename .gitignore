@@ -2,7 +2,6 @@
 *.db*
 
 back
-tests
 target
 .vscode
 migrations
