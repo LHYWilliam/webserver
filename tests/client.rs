@@ -1,12 +1,9 @@
-use reqwest::{Client, Response, header};
+use std::ops::Deref;
+
+use reqwest::{Response, header};
 use serde::Deserialize;
 
-#[allow(unused)]
-#[derive(Deserialize)]
-pub struct AuthBody {
-    access_token: String,
-    token_type: String,
-}
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[allow(unused)]
 mod test {
@@ -14,93 +11,106 @@ mod test {
     use super::*;
 
     #[tokio::test]
-    async fn client() -> Result<(), Box<dyn std::error::Error>> {
-        let client = Client::new();
+    async fn client() -> Result<()> {
+        let mut client = Client::new();
 
-        let (cookies, access_token) = auth(&client).await?;
-
-        login(&client).await?;
+        login(&mut client).await?;
+        list(&client).await?;
+        create(&client).await?;
+        list(&client).await?;
+        delete(&client).await?;
+        list(&client).await?;
 
         Ok(())
     }
 
-    async fn auth(client: &Client) -> Result<(String, String), Box<dyn std::error::Error>> {
-        let response = client
-            .post("http://127.0.0.1:3000/login")
-            .header("Content-Type", "application/json")
-            .body(r#"{"username":"william","password":"040720"}"#)
-            .send()
-            .await?;
-
-        let headers = response.headers().clone();
-        let body = response.json::<AuthBody>().await?;
-
-        let cookies = headers.get("set-cookie").unwrap().to_str()?.to_string();
-        let access_token = body.access_token;
-
-        Ok((cookies, access_token))
-    }
-
-    async fn hello(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
-        let response = client.get("http://127.0.0.1:3000/").send().await?;
+    async fn hello(client: &Client) -> Result<()> {
+        let response = client.send(client.get("http://127.0.0.1:3000/")).await?;
 
         println!("\n\n=== Response for GET {} ===", response.url());
-        print(response, "".to_string(), "".to_string()).await?;
+        print(client, response).await?;
 
         Ok(())
     }
 
-    async fn register(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
+    async fn register(client: &Client) -> Result<()> {
         let response = client
-            .post("http://127.0.0.1:3000/register")
-            .header("Content-Type", "application/json")
-            .body(r#"{"username":"william","password":"040720"}"#)
-            .send()
+            .send(
+                client
+                    .post("http://127.0.0.1:3000/register")
+                    .header("Content-Type", "application/json")
+                    .body(r#"{"username":"william","password":"040720"}"#),
+            )
             .await?;
 
         println!("\n\n=== Response for post {} ===", response.url());
-        print(response, "".to_string(), "".to_string()).await?;
+        print(client, response).await?;
 
         Ok(())
     }
 
-    async fn login(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
+    async fn login(client: &mut Client) -> Result<()> {
         let response = client
-            .post("http://127.0.0.1:3000/login")
-            .header("Content-Type", "application/json")
-            .body(r#"{"username":"william","password":"040720"}"#)
-            .send()
+            .send(
+                client
+                    .post("http://127.0.0.1:3000/login")
+                    .header("Content-Type", "application/json")
+                    .body(r#"{"username":"william","password":"040720"}"#),
+            )
             .await?;
 
+        let headers = response.headers().clone();
+
         println!("\n\n=== Response for POST {} ===", response.url());
-        print(response, "".to_string(), "".to_string()).await?;
+        let body = print(client, response).await?;
+
+        let body = serde_json::from_str::<AuthBody>(&body)?;
+
+        client.cookies(headers.get("set-cookie").unwrap().to_str()?.to_string());
+        client.access_token(body.access_token);
 
         Ok(())
     }
 
-    async fn list(
-        client: &Client,
-        cookies: String,
-        access_token: String,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn list(client: &Client) -> Result<()> {
         let response = client
-            .get("http://127.0.0.1:3000/ticket")
-            .header("Cookie", cookies.clone())
-            .header("Authorization", format!("Bearer {}", access_token))
-            .send()
+            .send(client.get("http://127.0.0.1:3000/ticket"))
             .await?;
 
         println!("\n\n=== Response for GET {} ===", response.url());
-        print(response, cookies, access_token).await?;
+        print(client, response).await?;
 
         Ok(())
     }
 
-    async fn print(
-        response: Response,
-        cookies: String,
-        access_token: String,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn create(client: &Client) -> Result<()> {
+        let response = client
+            .send(
+                client
+                    .post("http://127.0.0.1:3000/ticket")
+                    .header("Content-Type", "application/json")
+                    .body(r#"{"title":"william"}"#),
+            )
+            .await?;
+
+        println!("\n\n=== Response for POST {} ===", response.url());
+        print(client, response).await?;
+
+        Ok(())
+    }
+
+    async fn delete(client: &Client) -> Result<()> {
+        let response = client
+            .send(client.delete("http://127.0.0.1:3000/ticket?id=1"))
+            .await?;
+
+        println!("\n\n=== Response for POST {} ===", response.url());
+        print(client, response).await?;
+
+        Ok(())
+    }
+
+    async fn print(client: &Client, response: Response) -> Result<String> {
         let status = response.status().to_string();
         let headers = response.headers().clone();
         let body = response.text().await?;
@@ -113,8 +123,8 @@ mod test {
         });
 
         println!("=> {:16}:", "Client");
-        println!("   cookies: {}", cookies);
-        println!("   access_token: {}", access_token);
+        println!("   cookies: {}", client.cookies);
+        println!("   access_token: {}", client.access_token);
 
         let content_type = headers
             .get(header::CONTENT_TYPE)
@@ -126,11 +136,56 @@ mod test {
                     .and_then(|json| serde_json::to_string_pretty(&json))
                     .unwrap_or(body.clone())
             })
-            .unwrap_or(body);
+            .unwrap_or(body.clone());
 
         println!("=> {:16}:", "Response Body");
         println!("{}", formatted_body);
 
-        Ok(())
+        Ok(body)
+    }
+}
+
+#[allow(unused)]
+#[derive(Deserialize)]
+struct AuthBody {
+    access_token: String,
+    token_type: String,
+}
+
+#[derive(Default)]
+struct Client {
+    client: reqwest::Client,
+    cookies: String,
+    access_token: String,
+}
+
+impl Client {
+    fn new() -> Self {
+        Default::default()
+    }
+
+    fn cookies(&mut self, cookies: String) {
+        self.cookies = cookies;
+    }
+
+    fn access_token(&mut self, access_token: String) {
+        self.access_token = access_token;
+    }
+
+    async fn send(&self, request: reqwest::RequestBuilder) -> Result<Response> {
+        request
+            .header("Cookie", self.cookies.clone())
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .send()
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+    }
+}
+
+impl Deref for Client {
+    type Target = reqwest::Client;
+
+    fn deref(&self) -> &Self::Target {
+        &self.client
     }
 }
