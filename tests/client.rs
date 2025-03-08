@@ -67,7 +67,7 @@ mod test {
 
         let body = serde_json::from_str::<AuthBody>(&body)?;
 
-        client.cookies(headers.get("set-cookie").unwrap().to_str()?.to_string());
+        client.cookies(headers.get("set-cookie").unwrap().to_str()?.into());
         client.access_token(body.access_token);
 
         Ok(())

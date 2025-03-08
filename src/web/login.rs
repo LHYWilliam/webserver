@@ -41,7 +41,7 @@ async fn login(
     .await
     .map_err(|_| AuthError::WrongCredentials)?;
 
-    cookies.add(Cookie::new("user".to_string(), payload.username.clone()));
+    cookies.add(Cookie::new("user", payload.username.clone()));
 
     let claims = Claims {
         sub: payload.username.clone(),

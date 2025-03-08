@@ -49,7 +49,7 @@ impl AuthBody {
     pub fn new(access_token: String) -> Self {
         Self {
             access_token,
-            token_type: "Bearer".to_string(),
+            token_type: "Bearer".into(),
         }
     }
 }
