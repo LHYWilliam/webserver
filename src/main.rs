@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, net::SocketAddr};
 
 use axum::{
     Router,
@@ -13,7 +13,7 @@ use sqlx::SqlitePool;
 use tokio::net::TcpListener;
 use tower_cookies::CookieManagerLayer;
 
-use http::web::{login, register, ticket};
+use http::web::{chat, login, register, ticket};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,9 +26,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(register::router(pool.clone()))
         .merge(login::router(pool.clone()))
         .merge(ticket::router(pool.clone()))
+        .merge(chat::router())
         .layer(CookieManagerLayer::new())
         .layer(middleware::map_request(requset_input))
-        .layer(middleware::map_response(response_output));
+        .layer(middleware::map_response(response_output))
+        .into_make_service_with_connect_info::<SocketAddr>();
 
     let listener = TcpListener::bind("127.0.0.1:3000").await?;
     println!("[{:^12}] - {}\n", "Listener", listener.local_addr()?);
