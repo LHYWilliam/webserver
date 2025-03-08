@@ -21,7 +21,7 @@ struct Ticket {
 }
 
 pub fn router(pool: Pool<Sqlite>) -> Router {
-    axum::Router::new()
+    Router::new()
         .route("/ticket", routing::post(create))
         .route("/ticket", routing::get(list))
         .route("/ticket", routing::delete(delete))

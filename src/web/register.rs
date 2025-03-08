@@ -5,7 +5,7 @@ use sqlx::{Pool, Sqlite};
 use crate::error::{Error, Result};
 
 pub fn router(pool: Pool<Sqlite>) -> Router {
-    axum::Router::new()
+    Router::new()
         .route("/register", routing::post(register))
         .with_state(pool)
 }

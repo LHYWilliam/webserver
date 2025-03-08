@@ -1,7 +1,7 @@
 .env
-*.db*
 
 back
 target
 .vscode
+database
 migrations
