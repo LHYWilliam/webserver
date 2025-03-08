@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite};
 
 use crate::{
-    error::{Error, Result},
+    error::{DatabaseError, Result, TicketError},
     middleware::auth,
 };
 
@@ -49,7 +49,7 @@ async fn create(
     )
     .execute(&pool)
     .await
-    .map_err(|_| Error::SQLiteErrorInsertFailed)?;
+    .map_err(|_| DatabaseError::InsertFailed)?;
 
     let ticket = sqlx::query_as!(
         Ticket,
@@ -62,7 +62,7 @@ async fn create(
     )
     .fetch_one(&pool)
     .await
-    .map_err(|_| Error::TicketErrorCreateFailed)?;
+    .map_err(|_| TicketError::CreateFailed)?;
 
     Ok((StatusCode::CREATED, Json(ticket)))
 }
@@ -79,7 +79,7 @@ async fn list(State(pool): State<Pool<Sqlite>>) -> Result<impl IntoResponse> {
     )
     .fetch_all(&pool)
     .await
-    .map_err(|_| Error::SQLiteErrorSelectFailed)?;
+    .map_err(|_| DatabaseError::SelectFailed)?;
 
     Ok((StatusCode::OK, Json(tickets)))
 }
@@ -106,7 +106,7 @@ async fn delete(
     )
     .fetch_one(&pool)
     .await
-    .map_err(|_| Error::TicketErrorIdNotFound { id: payload.id })?;
+    .map_err(|_| TicketError::NotFound(payload.id))?;
 
     sqlx::query!(
         r#"
@@ -117,7 +117,7 @@ async fn delete(
     )
     .execute(&pool)
     .await
-    .map_err(|_| Error::SQLiteErrorDeleteFailed)?;
+    .map_err(|_| DatabaseError::DeleteFailed)?;
 
     Ok((StatusCode::OK, Json(ticket)))
 }

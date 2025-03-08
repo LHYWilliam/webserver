@@ -6,7 +6,7 @@ use sqlx::{Pool, Sqlite};
 use tower_cookies::{Cookie, Cookies};
 
 use crate::{
-    error::{Error, Result},
+    error::{AuthError, Result},
     middleware::auth::jwt::{AuthBody, Claims},
 };
 
@@ -39,7 +39,7 @@ async fn login(
     )
     .fetch_one(&pool)
     .await
-    .map_err(|_| Error::AuthErrorWrongUsernameOrPassword)?;
+    .map_err(|_| AuthError::WrongCredentials)?;
 
     cookies.add(Cookie::new("user".to_string(), payload.username.clone()));
 
@@ -53,7 +53,7 @@ async fn login(
         &claims,
         &EncodingKey::from_secret(b"secret"),
     )
-    .map_err(|_| Error::AuthErrorInvalidToken)?;
+    .map_err(|_| AuthError::InvalidToken)?;
 
     Ok((StatusCode::OK, Json(AuthBody::new(token))))
 }

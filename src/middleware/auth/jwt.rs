@@ -6,7 +6,7 @@ use axum_extra::{
 use jsonwebtoken::{DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 
-use crate::error::{Error, Result};
+use crate::error::{AuthError, Error, Result};
 
 #[derive(Serialize, Deserialize)]
 pub struct Claims {
@@ -26,14 +26,14 @@ where
         let TypedHeader(Authorization(bearer)) =
             TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state)
                 .await
-                .map_err(|_| Error::AuthErrorInvalidToken)?;
+                .map_err(|_| AuthError::InvalidToken)?;
 
         let token_data = jsonwebtoken::decode(
             bearer.token(),
             &DecodingKey::from_secret(b"secret"),
             &Validation::default(),
         )
-        .map_err(|_| Error::AuthErrorInvalidToken)?;
+        .map_err(|_| AuthError::InvalidToken)?;
 
         Ok(token_data.claims)
     }

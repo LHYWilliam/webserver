@@ -2,7 +2,7 @@ use axum::{Json, Router, extract::State, http::StatusCode, response::IntoRespons
 use serde::Deserialize;
 use sqlx::{Pool, Sqlite};
 
-use crate::error::{Error, Result};
+use crate::error::{DatabaseError, Result};
 
 pub fn router(pool: Pool<Sqlite>) -> Router {
     Router::new()
@@ -33,7 +33,7 @@ async fn register(
     )
     .execute(&pool)
     .await
-    .map_err(|_| Error::SQLiteErrorInsertFailed)?;
+    .map_err(|_| DatabaseError::InsertFailed)?;
 
     match result.rows_affected() {
         0 => Ok((

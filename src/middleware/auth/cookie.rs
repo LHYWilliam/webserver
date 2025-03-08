@@ -6,7 +6,7 @@ use axum::{
 };
 use sqlx::{Pool, Sqlite};
 
-use crate::error::{Error, Result};
+use crate::error::{AuthError, Error, Result};
 
 pub struct Cookies(tower_cookies::Cookies);
 
@@ -30,16 +30,16 @@ where
 
         let cookies = tower_cookies::Cookies::from_request_parts(parts, state)
             .await
-            .map_err(|_| Error::AuthErrorInvalidCookie)?;
+            .map_err(|_| AuthError::InvalidCookie)?;
 
         let State(pool) = State::<Pool<Sqlite>>::from_request_parts(parts, state)
             .await
-            .map_err(|_| Error::ExtractorError)?;
+            .map_err(|_| Error::Unknown)?;
 
         let username = cookies
             .get("user")
             .map(|c| c.value().to_string())
-            .ok_or(Error::AuthErrorInvalidCookie)?;
+            .ok_or(AuthError::InvalidCookie)?;
 
         sqlx::query!(
             r#"
@@ -51,7 +51,7 @@ where
         )
         .fetch_one(&pool)
         .await
-        .map_err(|_| Error::AuthErrorInvalidCookie)?;
+        .map_err(|_| AuthError::InvalidCookie)?;
 
         Ok(Cookies(cookies))
     }
