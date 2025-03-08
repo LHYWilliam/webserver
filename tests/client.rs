@@ -14,6 +14,7 @@ mod test {
     async fn client() -> Result<()> {
         let mut client = Client::new();
 
+        register(&client).await?;
         login(&mut client).await?;
         list(&client).await?;
         create(&client).await?;
