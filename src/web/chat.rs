@@ -7,7 +7,10 @@ use axum::{
     routing,
 };
 use dashmap::DashMap;
-use futures_util::{SinkExt, stream::StreamExt};
+use futures_util::{
+    SinkExt,
+    stream::{SplitSink, StreamExt},
+};
 use tokio::sync::broadcast::{self, Sender};
 
 use crate::error::Result;
@@ -40,47 +43,50 @@ async fn chat(
 
         users.insert(addr, sender);
 
-        let mut send_task = tokio::spawn(async move {
+        let mut receive_task = tokio::spawn(async move {
             while let Some(Ok(message)) = rx.next().await {
                 match message {
                     ws::Message::Text(text) => {
-                        let message = Arc::new(Message::Content(text.to_string()));
-
-                        users.iter().for_each(|user| {
-                            user.value().send(message.clone()).unwrap();
-                        });
+                        receive_handler(text.to_string(), &users).await;
                     }
                     ws::Message::Close(_) => {
                         users.remove(&addr);
                         break;
                     }
                     _ => continue,
-                };
+                }
             }
         });
 
-        let mut receive_tasek = tokio::spawn(async move {
+        let mut send_task = tokio::spawn(async move {
             while let Ok(message) = receiver.recv().await {
-                match &*message {
-                    Message::Content(content) => {
-                        let message = ws::Message::Text(content.into());
-
-                        tx.send(message).await.unwrap();
-                    }
-                };
+                send_handler(message.clone(), &mut tx).await;
             }
         });
 
         tokio::select! {
-            _ = &mut send_task => {
-                println!("[{:^12}] - socket {} disconnect\n", "WebSocket", addr);
-                receive_tasek.abort()
-            },
+            _ = &mut send_task => { receive_task.abort() },
+            _ = &mut receive_task => { send_task.abort() },
+        };
 
-            _ = &mut receive_tasek => {
-                println!("[{:^12}] - socket {} disconnect\n", "WebSocket", addr);
-                send_task.abort()
-            },
-        }
+        println!("[{:^12}] - socket {} disconnect\n", "WebSocket", addr);
     }))
+}
+
+async fn receive_handler(message: String, users: &Users) {
+    let message = Arc::new(Message::Content(message));
+
+    users.iter().for_each(|user| {
+        user.value().send(message.clone()).unwrap();
+    });
+}
+
+async fn send_handler(message: Arc<Message>, tx: &mut SplitSink<ws::WebSocket, ws::Message>) {
+    match &*message {
+        Message::Content(content) => {
+            let message = ws::Message::Text(content.into());
+
+            tx.send(message).await.unwrap();
+        }
+    }
 }
