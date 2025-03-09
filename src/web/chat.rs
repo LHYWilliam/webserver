@@ -11,29 +11,38 @@ use futures_util::{
     SinkExt,
     stream::{SplitSink, StreamExt},
 };
+use serde::Deserialize;
 use tokio::sync::broadcast::{self, Sender};
 
 use crate::error::Result;
 
-#[derive(Debug)]
+#[derive(Deserialize, Debug)]
 enum Message {
+    Join,
+    Leave,
     Content(String),
 }
 
 type Users = DashMap<SocketAddr, Sender<Arc<Message>>>;
 
+struct AppState {
+    room_users: Arc<Users>,
+}
+
 pub fn router() -> Router {
-    let users = Arc::new(Users::new());
+    let state = Arc::new(AppState {
+        room_users: Arc::new(Users::new()),
+    });
 
     Router::new()
         .route("/chat", routing::any(chat))
-        .with_state(users)
+        .with_state(state)
 }
 
 async fn chat(
     ws: WebSocketUpgrade,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    State(users): State<Arc<Users>>,
+    State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse> {
     println!("[{:^12}] - socket {} connect", "WebSocket", addr);
 
@@ -41,16 +50,15 @@ async fn chat(
         let (mut tx, mut rx) = socket.split();
         let (sender, mut receiver) = broadcast::channel::<Arc<Message>>(128);
 
-        users.insert(addr, sender);
-
         let mut receive_task = tokio::spawn(async move {
             while let Some(Ok(message)) = rx.next().await {
                 match message {
                     ws::Message::Text(text) => {
-                        receive_handler(text.to_string(), &users).await;
+                        receive_handler(text.to_string(), &state.room_users, sender.clone(), addr)
+                            .await;
                     }
                     ws::Message::Close(_) => {
-                        users.remove(&addr);
+                        state.room_users.remove(&addr);
                         break;
                     }
                     _ => continue,
@@ -73,12 +81,31 @@ async fn chat(
     }))
 }
 
-async fn receive_handler(message: String, users: &Users) {
-    let message = Arc::new(Message::Content(message));
+async fn receive_handler(
+    message: String,
+    room_users: &Users,
+    sender: Sender<Arc<Message>>,
+    addr: SocketAddr,
+) {
+    let message = serde_json::from_str::<Message>(&message).unwrap();
 
-    users.iter().for_each(|user| {
-        user.value().send(message.clone()).unwrap();
-    });
+    match message {
+        Message::Join => {
+            room_users.insert(addr, sender);
+        }
+
+        Message::Leave => {
+            room_users.remove(&addr);
+        }
+
+        Message::Content(message) => {
+            let message = Arc::new(Message::Content(message));
+
+            room_users.iter().for_each(|user| {
+                user.value().send(message.clone()).unwrap();
+            });
+        }
+    }
 }
 
 async fn send_handler(message: Arc<Message>, tx: &mut SplitSink<ws::WebSocket, ws::Message>) {
@@ -88,5 +115,7 @@ async fn send_handler(message: Arc<Message>, tx: &mut SplitSink<ws::WebSocket, w
 
             tx.send(message).await.unwrap();
         }
+        Message::Join => {}
+        Message::Leave => {}
     }
 }
