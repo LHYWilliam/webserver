@@ -8,7 +8,7 @@ use axum::{
 };
 use dashmap::DashMap;
 use futures_util::{SinkExt, stream::StreamExt};
-use tokio::sync::broadcast::{Sender, channel};
+use tokio::sync::broadcast::{self, Sender};
 
 use crate::error::Result;
 
@@ -36,34 +36,51 @@ async fn chat(
 
     Ok(ws.on_upgrade(move |socket| async move {
         let (mut tx, mut rx) = socket.split();
-        let (sender, mut receiver) = channel::<Arc<Message>>(128);
+        let (sender, mut receiver) = broadcast::channel::<Arc<Message>>(128);
 
         users.insert(addr, sender);
 
-        let users = users.clone();
-        tokio::spawn(async move {
+        let mut send_task = tokio::spawn(async move {
             while let Some(Ok(message)) = rx.next().await {
-                let message = match message {
-                    ws::Message::Text(text) => text.to_string(),
+                match message {
+                    ws::Message::Text(text) => {
+                        let message = Arc::new(Message::Content(text.to_string()));
+
+                        users.iter().for_each(|user| {
+                            user.value().send(message.clone()).unwrap();
+                        });
+                    }
+                    ws::Message::Close(_) => {
+                        users.remove(&addr);
+                        break;
+                    }
                     _ => continue,
                 };
-
-                let message = Arc::new(Message::Content(message));
-
-                users.iter().for_each(|user| {
-                    user.value().send(message.clone()).unwrap();
-                });
             }
         });
 
-        tokio::spawn(async move {
+        let mut receive_tasek = tokio::spawn(async move {
             while let Ok(message) = receiver.recv().await {
-                let message = match &*message {
-                    Message::Content(content) => ws::Message::Text(content.into()),
-                };
+                match &*message {
+                    Message::Content(content) => {
+                        let message = ws::Message::Text(content.into());
 
-                tx.send(message).await.unwrap();
+                        tx.send(message).await.unwrap();
+                    }
+                };
             }
         });
+
+        tokio::select! {
+            _ = &mut send_task => {
+                println!("[{:^12}] - socket {} disconnect\n", "WebSocket", addr);
+                receive_tasek.abort()
+            },
+
+            _ = &mut receive_tasek => {
+                println!("[{:^12}] - socket {} disconnect\n", "WebSocket", addr);
+                send_task.abort()
+            },
+        }
     }))
 }
