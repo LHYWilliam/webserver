@@ -17,13 +17,13 @@ use tokio::sync::broadcast::{self, Sender};
 use crate::error::Result;
 
 #[derive(Deserialize, Debug)]
-enum Message {
+enum SecketMessage {
     Join,
     Leave,
     Content(String),
 }
 
-type Users = DashMap<SocketAddr, Sender<Arc<Message>>>;
+type Users = DashMap<SocketAddr, Sender<Arc<SecketMessage>>>;
 
 struct AppState {
     room_users: Arc<Users>,
@@ -48,7 +48,7 @@ async fn chat(
 
     Ok(ws.on_upgrade(move |socket| async move {
         let (mut tx, mut rx) = socket.split();
-        let (sender, mut receiver) = broadcast::channel::<Arc<Message>>(128);
+        let (sender, mut receiver) = broadcast::channel::<Arc<SecketMessage>>(128);
 
         let mut receive_task = tokio::spawn(async move {
             while let Some(Ok(message)) = rx.next().await {
@@ -68,7 +68,7 @@ async fn chat(
 
         let mut send_task = tokio::spawn(async move {
             while let Ok(message) = receiver.recv().await {
-                send_handler(message.clone(), &mut tx).await;
+                send_handler(message.clone(), &mut tx, addr).await;
             }
         });
 
@@ -84,38 +84,38 @@ async fn chat(
 async fn receive_handler(
     message: String,
     room_users: &Users,
-    sender: Sender<Arc<Message>>,
+    sender: Sender<Arc<SecketMessage>>,
     addr: SocketAddr,
 ) {
-    let message = serde_json::from_str::<Message>(&message).unwrap();
+    let message = serde_json::from_str::<Arc<SecketMessage>>(&message)
+        .unwrap_or(Arc::new(SecketMessage::Leave));
 
-    match message {
-        Message::Join => {
+    match &*message {
+        SecketMessage::Join => {
             room_users.insert(addr, sender);
         }
-
-        Message::Leave => {
+        SecketMessage::Leave => {
             room_users.remove(&addr);
         }
-
-        Message::Content(message) => {
-            let message = Arc::new(Message::Content(message));
-
-            room_users.iter().for_each(|user| {
-                user.value().send(message.clone()).unwrap();
-            });
-        }
+        _ => {}
     }
+
+    room_users.iter().for_each(|user| {
+        user.value().send(message.clone()).unwrap();
+    });
 }
 
-async fn send_handler(message: Arc<Message>, tx: &mut SplitSink<ws::WebSocket, ws::Message>) {
-    match &*message {
-        Message::Content(content) => {
-            let message = ws::Message::Text(content.into());
+async fn send_handler(
+    message: Arc<SecketMessage>,
+    tx: &mut SplitSink<ws::WebSocket, ws::Message>,
+    addr: SocketAddr,
+) {
+    let message = match &*message {
+        SecketMessage::Join => format!("{addr} join"),
+        SecketMessage::Leave => format!("{addr} leave"),
+        SecketMessage::Content(content) => content.to_string(),
+    };
 
-            tx.send(message).await.unwrap();
-        }
-        Message::Join => {}
-        Message::Leave => {}
-    }
+    let message = ws::Message::Text(message.into());
+    tx.send(message).await.unwrap();
 }
