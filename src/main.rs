@@ -13,7 +13,7 @@ use sqlx::SqlitePool;
 use tokio::net::TcpListener;
 use tower_cookies::CookieManagerLayer;
 
-use http::web::{chat, login, register, ticket};
+use webserver::web::{chat, login, register, ticket};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
