@@ -2,7 +2,10 @@ use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
     Router,
-    extract::{ConnectInfo, State, WebSocketUpgrade, ws},
+    extract::{
+        ConnectInfo, State, WebSocketUpgrade,
+        ws::{self, Message},
+    },
     response::IntoResponse,
     routing,
 };
@@ -60,15 +63,7 @@ async fn chat(
 
         let mut receive_task = tokio::spawn(async move {
             while let Some(Ok(message)) = socket_rx.next().await {
-                let message = match message {
-                    ws::Message::Text(text) => text.to_string(),
-                    ws::Message::Close(_) => serde_json::to_string(&SocketMessage::Leave).unwrap(),
-                    _ => continue,
-                };
-                let message =
-                    serde_json::from_str::<SocketMessage>(&message).unwrap_or(SocketMessage::Leave);
-
-                socket_message_handler(message, &state.room_users, channel_sender.clone(), addr)
+                socket_message_handler(message, channel_sender.clone(), addr, &state.room_users)
                     .await;
             }
         });
@@ -89,11 +84,23 @@ async fn chat(
 }
 
 async fn socket_message_handler(
-    message: SocketMessage,
-    room_users: &RoomUsers,
+    message: Message,
     sender: ChannelSender,
     addr: SocketAddr,
+    room_users: &RoomUsers,
 ) {
+    let message = match message {
+        ws::Message::Text(text) => text.to_string(),
+        ws::Message::Close(_) => serde_json::to_string(&SocketMessage::Leave).unwrap(),
+        _ => serde_json::to_string(&SocketMessage::Content(ChannelMessage {
+            from: Some(addr),
+            message: "invalid message".to_string(),
+        }))
+        .unwrap(),
+    };
+
+    let message = serde_json::from_str::<SocketMessage>(&message).unwrap_or(SocketMessage::Leave);
+
     let message = match message {
         SocketMessage::Join => {
             room_users.insert(addr, sender);
