@@ -16,6 +16,10 @@ use tokio::sync::broadcast::{self, Sender};
 
 use crate::error::Result;
 
+type ChannelSender = Sender<Arc<ChannelMessage>>;
+type Users = DashMap<SocketAddr, ChannelSender>;
+type RoomUsers = Arc<Users>;
+
 #[derive(Serialize, Deserialize, Debug)]
 enum SocketMessage {
     Join,
@@ -29,10 +33,8 @@ struct ChannelMessage {
     message: String,
 }
 
-type Users = DashMap<SocketAddr, Sender<Arc<ChannelMessage>>>;
-
 struct AppState {
-    room_users: Arc<Users>,
+    room_users: RoomUsers,
 }
 
 pub fn router() -> Router {
@@ -63,14 +65,11 @@ async fn chat(
                     ws::Message::Close(_) => serde_json::to_string(&SocketMessage::Leave).unwrap(),
                     _ => continue,
                 };
+                let message =
+                    serde_json::from_str::<SocketMessage>(&message).unwrap_or(SocketMessage::Leave);
 
-                socket_message_handler(
-                    message,
-                    state.room_users.clone(),
-                    channel_sender.clone(),
-                    addr,
-                )
-                .await;
+                socket_message_handler(message, &state.room_users, channel_sender.clone(), addr)
+                    .await;
             }
         });
 
@@ -90,13 +89,11 @@ async fn chat(
 }
 
 async fn socket_message_handler(
-    message: String,
-    room_users: Arc<Users>,
-    sender: Sender<Arc<ChannelMessage>>,
+    message: SocketMessage,
+    room_users: &RoomUsers,
+    sender: ChannelSender,
     addr: SocketAddr,
 ) {
-    let message = serde_json::from_str::<SocketMessage>(&message).unwrap_or(SocketMessage::Leave);
-
     let message = match message {
         SocketMessage::Join => {
             room_users.insert(addr, sender);
