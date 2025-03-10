@@ -1,10 +1,12 @@
+mod manage;
+
 use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
-    Json, Router,
+    Router,
     extract::{
-        ConnectInfo, Query, State, WebSocketUpgrade,
-        ws::{self, Message},
+        ConnectInfo, State, WebSocketUpgrade,
+        ws::{Message, WebSocket},
     },
     response::IntoResponse,
     routing,
@@ -14,11 +16,24 @@ use futures_util::{
     SinkExt,
     stream::{SplitSink, StreamExt},
 };
-use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::{self, Sender};
 
-use crate::error::{DatabaseError, Result};
+use crate::error::Result;
+
+pub fn router() -> Router {
+    let state = Arc::new(AppState {
+        room_users: Arc::new(DashMap::new()),
+        _user_rooms: Arc::new(DashMap::new()),
+    });
+
+    Router::new()
+        .route("/chat", routing::any(chat))
+        .route("/chat/manage", routing::get(manage::manage_get))
+        .route("/chat/manage", routing::post(manage::manage_post))
+        .route("/chat/manage", routing::delete(manage::manage_delete))
+        .with_state(state)
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 enum SocketMessage {
@@ -67,77 +82,6 @@ struct AppState {
     _user_rooms: UserRooms,
 }
 
-pub fn router() -> Router {
-    let state = Arc::new(AppState {
-        room_users: Arc::new(DashMap::new()),
-        _user_rooms: Arc::new(DashMap::new()),
-    });
-
-    Router::new()
-        .route("/chat", routing::any(chat))
-        .route(
-            "/chat/manage",
-            routing::get(manage_get)
-                .post(manage_post)
-                .delete(manage_delete),
-        )
-        .with_state(state)
-}
-
-async fn manage_get(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl get /chat/manage", "Handler");
-
-    let rooms = state
-        .room_users
-        .iter()
-        .map(|entry| entry.key().name.clone())
-        .collect::<Vec<String>>();
-
-    Ok(Json(rooms))
-}
-
-#[derive(Deserialize)]
-struct PostPayload {
-    name: String,
-}
-
-async fn manage_post(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<PostPayload>,
-) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl post /chat/manage", "Handler");
-
-    state.room_users.insert(
-        Room {
-            name: payload.name.clone(),
-        },
-        DashSet::new(),
-    );
-
-    Ok((StatusCode::CREATED, Json(Room { name: payload.name })))
-}
-
-#[derive(Deserialize)]
-struct DeletePayload {
-    name: String,
-}
-
-async fn manage_delete(
-    State(state): State<Arc<AppState>>,
-    Query(payload): Query<DeletePayload>,
-) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl delete /chat/manage", "Handler");
-
-    state
-        .room_users
-        .remove(&Room {
-            name: payload.name.clone(),
-        })
-        .ok_or(DatabaseError::DeleteFailed)?;
-
-    Ok((StatusCode::OK, Json(Room { name: payload.name })))
-}
-
 async fn chat(
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
@@ -183,8 +127,8 @@ async fn socket_message_handler(
     room_users: RoomUsers,
 ) {
     let message = match message {
-        ws::Message::Text(text) => text.to_string(),
-        ws::Message::Close(_) => serde_json::to_string(&SocketMessage::Leave("1".into())).unwrap(),
+        Message::Text(text) => text.to_string(),
+        Message::Close(_) => serde_json::to_string(&SocketMessage::Leave("1".into())).unwrap(),
         _ => serde_json::to_string(&SocketMessage::Content(ChannelMessage {
             room: Room { name: "1".into() },
             from: Some(addr),
@@ -247,10 +191,10 @@ async fn socket_message_handler(
 
 async fn channel_message_handler(
     message: Arc<ChannelMessage>,
-    tx: &mut SplitSink<ws::WebSocket, ws::Message>,
+    tx: &mut SplitSink<WebSocket, Message>,
 ) {
     let message = serde_json::to_string(&message).unwrap();
-    let message = ws::Message::Text(message.into());
+    let message = Message::Text(message.into());
 
     tx.send(message).await.unwrap();
 }
