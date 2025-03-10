@@ -13,7 +13,7 @@ use sqlx::SqlitePool;
 use tokio::net::TcpListener;
 use tower_cookies::CookieManagerLayer;
 
-use webserver::web::{chat, login, register, ticket};
+use webserver::web::{login, register, room, ticket};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(register::router(pool.clone()))
         .merge(login::router(pool.clone()))
         .merge(ticket::router(pool.clone()))
-        .merge(chat::router())
+        .merge(room::router())
         .layer(CookieManagerLayer::new())
         .layer(middleware::map_request(requset_input))
         .layer(middleware::map_response(response_output))

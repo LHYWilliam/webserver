@@ -9,12 +9,10 @@ use axum::{
 use dashmap::DashSet;
 use serde::Deserialize;
 
-use crate::{
-    error::{DatabaseError, Result},
-    web::chat::{AppState, Room},
-};
+use super::{AppState, chat::Room};
+use crate::error::{DatabaseError, Result};
 
-pub async fn manage_get(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
+pub async fn list(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
     println!("[{:^12}] - handl get /chat/manage", "Handler");
 
     let rooms = state
@@ -31,7 +29,7 @@ pub struct PostPayload {
     name: String,
 }
 
-pub async fn manage_post(
+pub async fn create(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<PostPayload>,
 ) -> Result<impl IntoResponse> {
@@ -52,7 +50,7 @@ pub struct DeletePayload {
     name: String,
 }
 
-pub async fn manage_delete(
+pub async fn delete(
     State(state): State<Arc<AppState>>,
     Query(payload): Query<DeletePayload>,
 ) -> Result<impl IntoResponse> {

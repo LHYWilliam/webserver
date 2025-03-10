@@ -1,15 +1,11 @@
-mod manage;
-
 use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
-    Router,
     extract::{
         ConnectInfo, State, WebSocketUpgrade,
         ws::{Message, WebSocket},
     },
     response::IntoResponse,
-    routing,
 };
 use dashmap::{DashMap, DashSet};
 use futures_util::{
@@ -19,70 +15,27 @@ use futures_util::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::{self, Sender};
 
+use super::{
+    AppState,
+    message::{ChannelMessage, SocketMessage},
+};
 use crate::error::Result;
 
-pub fn router() -> Router {
-    let state = Arc::new(AppState {
-        room_users: Arc::new(DashMap::new()),
-        _user_rooms: Arc::new(DashMap::new()),
-    });
+pub type RoomUsers = Arc<DashMap<Room, DashSet<User>>>;
+pub type UserRooms = Arc<DashMap<User, DashSet<Room>>>;
 
-    Router::new()
-        .route("/chat", routing::any(chat))
-        .route("/chat/manage", routing::get(manage::manage_get))
-        .route("/chat/manage", routing::post(manage::manage_post))
-        .route("/chat/manage", routing::delete(manage::manage_delete))
-        .with_state(state)
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-enum SocketMessage {
-    Join(String),
-    Leave(String),
-    Content(ChannelMessage),
-}
-
-struct User {
+pub struct User {
     name: String,
     addr: SocketAddr,
     sender: Sender<Arc<ChannelMessage>>,
 }
 
-impl PartialEq for User {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.addr == other.addr
-    }
-}
-
-impl Eq for User {}
-
-impl std::hash::Hash for User {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-        self.addr.hash(state);
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
-struct Room {
-    name: String,
-}
-type RoomUsers = Arc<DashMap<Room, DashSet<User>>>;
-type UserRooms = Arc<DashMap<User, DashSet<Room>>>;
-
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
-struct ChannelMessage {
-    room: Room,
-    from: Option<SocketAddr>,
-    message: String,
+pub struct Room {
+    pub name: String,
 }
 
-struct AppState {
-    room_users: RoomUsers,
-    _user_rooms: UserRooms,
-}
-
-async fn chat(
+pub async fn chat(
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -197,4 +150,19 @@ async fn channel_message_handler(
     let message = Message::Text(message.into());
 
     tx.send(message).await.unwrap();
+}
+
+impl PartialEq for User {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.addr == other.addr
+    }
+}
+
+impl Eq for User {}
+
+impl std::hash::Hash for User {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.addr.hash(state);
+    }
 }
