@@ -9,7 +9,7 @@ use axum::{
     response::IntoResponse,
     routing,
 };
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use futures_util::{
     SinkExt,
     stream::{SplitSink, StreamExt},
@@ -19,31 +19,66 @@ use tokio::sync::broadcast::{self, Sender};
 
 use crate::error::Result;
 
-type ChannelSender = Sender<Arc<ChannelMessage>>;
-type Users = DashMap<SocketAddr, ChannelSender>;
-type RoomUsers = Arc<Users>;
-
 #[derive(Serialize, Deserialize, Debug)]
 enum SocketMessage {
-    Join,
-    Leave,
+    Join(String),
+    Leave(String),
     Content(ChannelMessage),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+struct User {
+    name: String,
+    addr: SocketAddr,
+    sender: Sender<Arc<ChannelMessage>>,
+}
+
+impl PartialEq for User {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.addr == other.addr
+    }
+}
+
+impl Eq for User {}
+
+impl std::hash::Hash for User {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.addr.hash(state);
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
+struct Room {
+    name: String,
+}
+type RoomUsers = Arc<DashMap<Room, DashSet<User>>>;
+type UserRooms = Arc<DashMap<User, DashSet<Room>>>;
+
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 struct ChannelMessage {
+    room: Room,
     from: Option<SocketAddr>,
     message: String,
 }
 
 struct AppState {
     room_users: RoomUsers,
+    _user_rooms: UserRooms,
 }
 
 pub fn router() -> Router {
     let state = Arc::new(AppState {
-        room_users: Arc::new(Users::new()),
+        room_users: Arc::new(DashMap::new()),
+        _user_rooms: Arc::new(DashMap::new()),
     });
+
+    state
+        .room_users
+        .insert(Room { name: "1".into() }, DashSet::new());
+
+    state
+        .room_users
+        .insert(Room { name: "2".into() }, DashSet::new());
 
     Router::new()
         .route("/chat", routing::any(chat))
@@ -63,8 +98,13 @@ async fn chat(
 
         let mut receive_task = tokio::spawn(async move {
             while let Some(Ok(message)) = socket_rx.next().await {
-                socket_message_handler(message, channel_sender.clone(), addr, &state.room_users)
-                    .await;
+                socket_message_handler(
+                    message,
+                    channel_sender.clone(),
+                    addr,
+                    state.room_users.clone(),
+                )
+                .await;
             }
         });
 
@@ -85,42 +125,71 @@ async fn chat(
 
 async fn socket_message_handler(
     message: Message,
-    sender: ChannelSender,
+    sender: Sender<Arc<ChannelMessage>>,
     addr: SocketAddr,
-    room_users: &RoomUsers,
+    room_users: RoomUsers,
 ) {
     let message = match message {
         ws::Message::Text(text) => text.to_string(),
-        ws::Message::Close(_) => serde_json::to_string(&SocketMessage::Leave).unwrap(),
+        ws::Message::Close(_) => serde_json::to_string(&SocketMessage::Leave("1".into())).unwrap(),
         _ => serde_json::to_string(&SocketMessage::Content(ChannelMessage {
+            room: Room { name: "1".into() },
             from: Some(addr),
             message: "invalid message".to_string(),
         }))
         .unwrap(),
     };
 
-    let message = serde_json::from_str::<SocketMessage>(&message).unwrap_or(SocketMessage::Leave);
+    let message =
+        serde_json::from_str::<SocketMessage>(&message).unwrap_or(SocketMessage::Leave("1".into()));
 
     let message = match message {
-        SocketMessage::Join => {
-            room_users.insert(addr, sender);
-            format!("{addr} join")
+        SocketMessage::Join(name) => {
+            room_users
+                .get(&Room { name: name.clone() })
+                .unwrap()
+                .insert(User {
+                    name: addr.to_string(),
+                    addr,
+                    sender,
+                });
+
+            Arc::new(ChannelMessage {
+                room: Room { name },
+                from: Some(addr),
+                message: format!("{addr} join"),
+            })
         }
-        SocketMessage::Leave => {
-            room_users.remove(&addr);
-            format!("{addr} leave")
+        SocketMessage::Leave(name) => {
+            room_users
+                .get(&Room { name: name.clone() })
+                .unwrap()
+                .remove(&User {
+                    name: addr.to_string(),
+                    addr,
+                    sender,
+                });
+
+            Arc::new(ChannelMessage {
+                room: Room { name },
+                from: Some(addr),
+                message: format!("{addr} leave"),
+            })
         }
-        SocketMessage::Content(ChannelMessage { message, .. }) => message,
+        SocketMessage::Content(ChannelMessage { room, message, .. }) => Arc::new(ChannelMessage {
+            room,
+            from: Some(addr),
+            message,
+        }),
     };
 
-    let message = Arc::new(ChannelMessage {
-        from: Some(addr),
-        message,
-    });
-
-    room_users.iter().for_each(|user| {
-        user.value().send(message.clone()).unwrap();
-    });
+    room_users
+        .get(&message.room)
+        .unwrap()
+        .iter()
+        .for_each(|user| {
+            user.sender.send(message.clone()).unwrap();
+        });
 }
 
 async fn channel_message_handler(
