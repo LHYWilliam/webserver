@@ -24,13 +24,14 @@ use crate::error::Result;
 pub type RoomUsers = Arc<DashMap<Room, DashSet<User>>>;
 pub type UserRooms = Arc<DashMap<User, DashSet<Room>>>;
 
+#[derive(Clone)]
 pub struct User {
     name: String,
     addr: SocketAddr,
     sender: Sender<Arc<ChannelMessage>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, Eq, PartialEq)]
 pub struct Room {
     pub name: String,
 }
@@ -48,13 +49,30 @@ pub async fn chat(
 
         let mut receive_task = tokio::spawn(async move {
             while let Some(Ok(message)) = socket_rx.next().await {
-                socket_message_handler(
-                    message,
-                    channel_sender.clone(),
-                    addr,
-                    state.room_users.clone(),
-                )
-                .await;
+                match message {
+                    Message::Text(message) => {
+                        socket_message_text_handler(
+                            message.to_string(),
+                            channel_sender.clone(),
+                            addr,
+                            state.room_users.clone(),
+                            state.user_rooms.clone(),
+                        )
+                        .await;
+                    }
+
+                    Message::Close(_) => {
+                        socket_message_close_handler(
+                            channel_sender.clone(),
+                            addr,
+                            state.room_users.clone(),
+                            state.user_rooms.clone(),
+                        )
+                        .await
+                    }
+
+                    _ => {}
+                }
             }
         });
 
@@ -73,59 +91,52 @@ pub async fn chat(
     }))
 }
 
-async fn socket_message_handler(
-    message: Message,
+async fn socket_message_text_handler(
+    message: String,
     sender: Sender<Arc<ChannelMessage>>,
     addr: SocketAddr,
     room_users: RoomUsers,
+    user_rooms: UserRooms,
 ) {
-    let message = match message {
-        Message::Text(text) => text.to_string(),
-        Message::Close(_) => serde_json::to_string(&SocketMessage::Leave("1".into())).unwrap(),
-        _ => serde_json::to_string(&SocketMessage::Content(ChannelMessage {
-            room: Room { name: "1".into() },
-            from: Some(addr),
-            message: "invalid message".to_string(),
-        }))
-        .unwrap(),
-    };
-
     let message =
         serde_json::from_str::<SocketMessage>(&message).unwrap_or(SocketMessage::Leave("1".into()));
 
+    let user = User {
+        name: addr.to_string(),
+        addr,
+        sender: sender.clone(),
+    };
+
     let message = match message {
         SocketMessage::Join(name) => {
-            room_users
-                .get(&Room { name: name.clone() })
-                .unwrap()
-                .insert(User {
-                    name: addr.to_string(),
-                    addr,
-                    sender,
-                });
+            let room = Room { name };
+
+            user_rooms
+                .entry(user.clone())
+                .or_default()
+                .insert(room.clone());
+            room_users.get(&room).unwrap().insert(user);
 
             Arc::new(ChannelMessage {
-                room: Room { name },
+                room,
                 from: Some(addr),
                 message: format!("{addr} join"),
             })
         }
+
         SocketMessage::Leave(name) => {
-            room_users
-                .get(&Room { name: name.clone() })
-                .unwrap()
-                .remove(&User {
-                    name: addr.to_string(),
-                    addr,
-                    sender,
-                });
+            let room = Room { name };
+
+            user_rooms.get(&user).unwrap().remove(&room);
+            room_users.get(&room).unwrap().remove(&user);
 
             Arc::new(ChannelMessage {
-                room: Room { name },
+                room: room.clone(),
                 from: Some(addr),
-                message: format!("{addr} leave"),
+                message: format!("user {} leave leave room {}", addr, room.name),
             })
         }
+
         SocketMessage::Content(ChannelMessage { room, message, .. }) => Arc::new(ChannelMessage {
             room,
             from: Some(addr),
@@ -140,6 +151,46 @@ async fn socket_message_handler(
         .for_each(|user| {
             user.sender.send(message.clone()).unwrap();
         });
+}
+
+async fn socket_message_close_handler(
+    sender: Sender<Arc<ChannelMessage>>,
+    addr: SocketAddr,
+    room_users: RoomUsers,
+    user_rooms: UserRooms,
+) {
+    let user = User {
+        name: addr.to_string(),
+        addr,
+        sender: sender.clone(),
+    };
+
+    if user_rooms.contains_key(&user) {
+        user_rooms
+            .entry(user.clone())
+            .or_default()
+            .iter()
+            .for_each(|room| {
+                let message = Arc::new(ChannelMessage {
+                    room: room.clone(),
+                    from: Some(addr),
+                    message: format!("user {} leave room {}", addr, room.name),
+                });
+
+                room_users
+                    .entry(room.clone())
+                    .or_default()
+                    .iter()
+                    .for_each(|user| {
+                        user.sender.send(message.clone()).unwrap();
+                    });
+            });
+
+        user_rooms.remove(&user);
+        room_users.iter().for_each(|room| {
+            room.value().remove(&user);
+        });
+    }
 }
 
 async fn channel_message_handler(

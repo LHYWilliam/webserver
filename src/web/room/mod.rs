@@ -11,13 +11,13 @@ use chat::{RoomUsers, UserRooms};
 
 struct AppState {
     room_users: RoomUsers,
-    _user_rooms: UserRooms,
+    user_rooms: UserRooms,
 }
 
 pub fn router() -> Router {
     let state = Arc::new(AppState {
         room_users: Arc::new(DashMap::new()),
-        _user_rooms: Arc::new(DashMap::new()),
+        user_rooms: Arc::new(DashMap::new()),
     });
 
     Router::new()
