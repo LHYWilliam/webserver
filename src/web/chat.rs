@@ -1,9 +1,9 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
-    Router,
+    Json, Router,
     extract::{
-        ConnectInfo, State, WebSocketUpgrade,
+        ConnectInfo, Query, State, WebSocketUpgrade,
         ws::{self, Message},
     },
     response::IntoResponse,
@@ -14,10 +14,11 @@ use futures_util::{
     SinkExt,
     stream::{SplitSink, StreamExt},
 };
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::{self, Sender};
 
-use crate::error::Result;
+use crate::error::{DatabaseError, Result};
 
 #[derive(Serialize, Deserialize, Debug)]
 enum SocketMessage {
@@ -72,17 +73,69 @@ pub fn router() -> Router {
         _user_rooms: Arc::new(DashMap::new()),
     });
 
-    state
-        .room_users
-        .insert(Room { name: "1".into() }, DashSet::new());
-
-    state
-        .room_users
-        .insert(Room { name: "2".into() }, DashSet::new());
-
     Router::new()
         .route("/chat", routing::any(chat))
+        .route(
+            "/chat/manage",
+            routing::get(manage_get)
+                .post(manage_post)
+                .delete(manage_delete),
+        )
         .with_state(state)
+}
+
+async fn manage_get(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
+    println!("[{:^12}] - handl get /chat/manage", "Handler");
+
+    let rooms = state
+        .room_users
+        .iter()
+        .map(|entry| entry.key().name.clone())
+        .collect::<Vec<String>>();
+
+    Ok(Json(rooms))
+}
+
+#[derive(Deserialize)]
+struct PostPayload {
+    name: String,
+}
+
+async fn manage_post(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<PostPayload>,
+) -> Result<impl IntoResponse> {
+    println!("[{:^12}] - handl post /chat/manage", "Handler");
+
+    state.room_users.insert(
+        Room {
+            name: payload.name.clone(),
+        },
+        DashSet::new(),
+    );
+
+    Ok((StatusCode::CREATED, Json(Room { name: payload.name })))
+}
+
+#[derive(Deserialize)]
+struct DeletePayload {
+    name: String,
+}
+
+async fn manage_delete(
+    State(state): State<Arc<AppState>>,
+    Query(payload): Query<DeletePayload>,
+) -> Result<impl IntoResponse> {
+    println!("[{:^12}] - handl delete /chat/manage", "Handler");
+
+    state
+        .room_users
+        .remove(&Room {
+            name: payload.name.clone(),
+        })
+        .ok_or(DatabaseError::DeleteFailed)?;
+
+    Ok((StatusCode::OK, Json(Room { name: payload.name })))
 }
 
 async fn chat(
