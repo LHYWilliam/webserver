@@ -11,7 +11,7 @@ use sqlx::{Pool, Sqlite};
 
 use crate::{
     error::{DatabaseError, Result, TicketError},
-    middleware::auth,
+    middleware::{cookie::Cookies, jwt::Claims},
 };
 
 #[derive(Serialize)]
@@ -25,7 +25,8 @@ pub fn router(pool: Pool<Sqlite>) -> Router {
         .route("/ticket", routing::post(create))
         .route("/ticket", routing::get(list))
         .route("/ticket", routing::delete(delete))
-        .layer(middleware::from_fn_with_state(pool.clone(), auth::auth))
+        .layer(middleware::from_extractor_with_state::<Cookies, Pool<Sqlite>>(pool.clone()))
+        .layer(middleware::from_extractor_with_state::<Claims, Pool<Sqlite>>(pool.clone()))
         .with_state(pool.clone())
 }
 

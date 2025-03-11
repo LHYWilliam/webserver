@@ -26,7 +26,7 @@ where
     type Rejection = Error;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self> {
-        println!("[{:^12}] - Cookie", "Extractor");
+        println!("[{:^12}] - Cookie", "Middleware");
 
         let cookies = tower_cookies::Cookies::from_request_parts(parts, state)
             .await
