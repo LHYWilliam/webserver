@@ -26,7 +26,7 @@ pub type UserRooms = Arc<DashMap<User, DashSet<Room>>>;
 
 #[derive(Clone)]
 pub struct User {
-    name: String,
+    pub name: String,
     addr: SocketAddr,
     sender: Sender<Arc<ChannelMessage>>,
 }
@@ -98,8 +98,10 @@ async fn socket_message_text_handler(
     room_users: RoomUsers,
     user_rooms: UserRooms,
 ) {
-    let message =
-        serde_json::from_str::<SocketMessage>(&message).unwrap_or(SocketMessage::Leave("1".into()));
+    let message = match serde_json::from_str::<SocketMessage>(&message) {
+        Ok(message) => message,
+        Err(_) => return,
+    };
 
     let user = User {
         name: addr.to_string(),
@@ -112,10 +114,11 @@ async fn socket_message_text_handler(
             let room = Room { name };
 
             user_rooms
-                .entry(user.clone())
-                .or_default()
-                .insert(room.clone());
-            room_users.get(&room).unwrap().insert(user);
+                .contains_key(&user)
+                .then(|| user_rooms.get(&user).unwrap().insert(room.clone()));
+            room_users
+                .contains_key(&room)
+                .then(|| room_users.get(&room).unwrap().insert(user));
 
             Arc::new(ChannelMessage {
                 room,
@@ -127,8 +130,12 @@ async fn socket_message_text_handler(
         SocketMessage::Leave(name) => {
             let room = Room { name };
 
-            user_rooms.get(&user).unwrap().remove(&room);
-            room_users.get(&room).unwrap().remove(&user);
+            user_rooms
+                .contains_key(&user)
+                .then(|| user_rooms.get(&user).unwrap().remove(&room));
+            room_users
+                .contains_key(&room)
+                .then(|| room_users.get(&room).unwrap().remove(&user));
 
             Arc::new(ChannelMessage {
                 room: room.clone(),
@@ -144,13 +151,15 @@ async fn socket_message_text_handler(
         }),
     };
 
-    room_users
-        .get(&message.room)
-        .unwrap()
-        .iter()
-        .for_each(|user| {
-            user.sender.send(message.clone()).unwrap();
-        });
+    room_users.contains_key(&message.room).then(|| {
+        room_users
+            .get(&message.room)
+            .unwrap()
+            .iter()
+            .for_each(|user| {
+                user.sender.send(message.clone()).unwrap();
+            })
+    });
 }
 
 async fn socket_message_close_handler(

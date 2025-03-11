@@ -22,8 +22,9 @@ pub fn router() -> Router {
 
     Router::new()
         .route("/chat", routing::any(chat::chat))
-        .route("/chat/manage", routing::get(manage::list))
-        .route("/chat/manage", routing::post(manage::create))
-        .route("/chat/manage", routing::delete(manage::delete))
+        .route("/chat/user", routing::get(manage::list_room_users))
+        .route("/chat/room", routing::get(manage::list_user_rooms))
+        .route("/chat/room", routing::post(manage::create))
+        .route("/chat/romm", routing::delete(manage::delete))
         .with_state(state)
 }

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use axum::{
     Json,
@@ -12,16 +12,46 @@ use serde::Deserialize;
 use super::{AppState, chat::Room};
 use crate::error::{DatabaseError, Result};
 
-pub async fn list(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl get /chat/manage", "Handler");
+pub async fn list_room_users(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
+    println!("[{:^12}] - handl get /chat/user", "Handler");
 
-    let rooms = state
+    let room_users = state
         .room_users
         .iter()
-        .map(|entry| entry.key().name.clone())
-        .collect::<Vec<String>>();
+        .map(|entry| {
+            (
+                entry.key().name.clone(),
+                entry
+                    .value()
+                    .iter()
+                    .map(|user| user.name.clone())
+                    .collect::<Vec<String>>(),
+            )
+        })
+        .collect::<HashMap<String, Vec<String>>>();
 
-    Ok(Json(rooms))
+    Ok(Json(room_users))
+}
+
+pub async fn list_user_rooms(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
+    println!("[{:^12}] - handl get /chat/room", "Handler");
+
+    let user_rooms = state
+        .user_rooms
+        .iter()
+        .map(|entry| {
+            (
+                entry.key().name.clone(),
+                entry
+                    .value()
+                    .iter()
+                    .map(|room| room.name.clone())
+                    .collect::<Vec<String>>(),
+            )
+        })
+        .collect::<HashMap<String, Vec<String>>>();
+
+    Ok(Json(user_rooms))
 }
 
 #[derive(Deserialize)]
