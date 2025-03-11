@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
 use thiserror::Error;
 
-use crate::error::ErrorResponse;
+use super::ErrorStatusCode;
 
 #[derive(Debug, Error)]
 pub enum DatabaseError {
@@ -16,7 +16,7 @@ pub enum DatabaseError {
 }
 
 #[allow(clippy::match_single_binding)]
-impl ErrorResponse for DatabaseError {
+impl ErrorStatusCode for DatabaseError {
     fn status_code(&self) -> StatusCode {
         match self {
             _ => StatusCode::INTERNAL_SERVER_ERROR,

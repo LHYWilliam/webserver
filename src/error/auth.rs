@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
 use thiserror::Error;
 
-use crate::error::ErrorResponse;
+use super::ErrorStatusCode;
 
 #[derive(Debug, Error)]
 pub enum AuthError {
@@ -16,7 +16,7 @@ pub enum AuthError {
 }
 
 #[allow(clippy::match_single_binding)]
-impl ErrorResponse for AuthError {
+impl ErrorStatusCode for AuthError {
     fn status_code(&self) -> StatusCode {
         match self {
             _ => StatusCode::UNAUTHORIZED,

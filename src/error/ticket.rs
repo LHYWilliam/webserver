@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
 use thiserror::Error;
 
-use crate::error::ErrorResponse;
+use super::ErrorStatusCode;
 
 #[derive(Debug, Error)]
 pub enum TicketError {
@@ -12,7 +12,7 @@ pub enum TicketError {
     NotFound(i64),
 }
 
-impl ErrorResponse for TicketError {
+impl ErrorStatusCode for TicketError {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::NotFound(_) => StatusCode::NOT_FOUND,
