@@ -19,7 +19,6 @@ use super::{
     AppState,
     message::{ChannelMessage, SocketMessage},
 };
-use crate::error::Result;
 
 pub type RoomUsers = Arc<DashMap<Room, DashSet<User>>>;
 pub type UserRooms = Arc<DashMap<User, DashSet<Room>>>;
@@ -40,10 +39,10 @@ pub async fn chat(
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-) -> Result<impl IntoResponse> {
+) -> impl IntoResponse {
     println!("[{:^12}] - socket {} connect", "WebSocket", addr);
 
-    Ok(ws.on_upgrade(move |socket| async move {
+    ws.on_upgrade(move |socket| async move {
         let (mut socket_tx, mut socket_rx) = socket.split();
         let (channel_sender, mut channel_receiver) = broadcast::channel::<Arc<ChannelMessage>>(128);
 
@@ -88,7 +87,7 @@ pub async fn chat(
         };
 
         println!("[{:^12}] - socket {} disconnect\n", "WebSocket", addr);
-    }))
+    })
 }
 
 async fn socket_message_text_handler(
@@ -98,9 +97,8 @@ async fn socket_message_text_handler(
     room_users: RoomUsers,
     user_rooms: UserRooms,
 ) {
-    let message = match serde_json::from_str::<SocketMessage>(&message) {
-        Ok(message) => message,
-        Err(_) => return,
+    let Ok(message) = serde_json::from_str::<SocketMessage>(&message) else {
+        return;
     };
 
     let user = User {
@@ -113,12 +111,17 @@ async fn socket_message_text_handler(
         SocketMessage::Join(name) => {
             let room = Room { name };
 
+            if !room_users.contains_key(&room) {
+                return;
+            }
+
             user_rooms
-                .contains_key(&user)
-                .then(|| user_rooms.get(&user).unwrap().insert(room.clone()));
-            room_users
-                .contains_key(&room)
-                .then(|| room_users.get(&room).unwrap().insert(user));
+                .entry(user.clone())
+                .or_default()
+                .insert(room.clone());
+            room_users.entry(room.clone()).and_modify(|users| {
+                users.insert(user);
+            });
 
             Arc::new(ChannelMessage {
                 room,
@@ -130,12 +133,12 @@ async fn socket_message_text_handler(
         SocketMessage::Leave(name) => {
             let room = Room { name };
 
-            user_rooms
-                .contains_key(&user)
-                .then(|| user_rooms.get(&user).unwrap().remove(&room));
-            room_users
-                .contains_key(&room)
-                .then(|| room_users.get(&room).unwrap().remove(&user));
+            user_rooms.entry(user.clone()).and_modify(|rooms| {
+                rooms.remove(&room);
+            });
+            room_users.entry(room.clone()).and_modify(|users| {
+                users.remove(&user);
+            });
 
             Arc::new(ChannelMessage {
                 room: room.clone(),
@@ -151,14 +154,10 @@ async fn socket_message_text_handler(
         }),
     };
 
-    room_users.contains_key(&message.room).then(|| {
-        room_users
-            .get(&message.room)
-            .unwrap()
-            .iter()
-            .for_each(|user| {
-                user.sender.send(message.clone()).unwrap();
-            })
+    room_users.entry(message.room.clone()).and_modify(|users| {
+        users.iter().for_each(|user| {
+            user.sender.send(message.clone()).unwrap();
+        })
     });
 }
 
@@ -174,32 +173,26 @@ async fn socket_message_close_handler(
         sender: sender.clone(),
     };
 
-    if user_rooms.contains_key(&user) {
-        user_rooms
-            .entry(user.clone())
-            .or_default()
-            .iter()
-            .for_each(|room| {
-                let message = Arc::new(ChannelMessage {
-                    room: room.clone(),
-                    from: Some(addr),
-                    message: format!("user {} leave room {}", addr, room.name),
-                });
-
-                room_users
-                    .entry(room.clone())
-                    .or_default()
-                    .iter()
-                    .for_each(|user| {
-                        user.sender.send(message.clone()).unwrap();
-                    });
+    user_rooms.entry(user.clone()).and_modify(|rooms| {
+        rooms.iter().for_each(|room| {
+            let message = Arc::new(ChannelMessage {
+                room: room.clone(),
+                from: Some(addr),
+                message: format!("user {} leave room {}", addr, room.name),
             });
+
+            room_users.entry(room.clone()).and_modify(|users| {
+                users.iter().for_each(|user| {
+                    user.sender.send(message.clone()).unwrap();
+                });
+            });
+        });
 
         user_rooms.remove(&user);
         room_users.iter().for_each(|room| {
             room.value().remove(&user);
         });
-    }
+    });
 }
 
 async fn channel_message_handler(
