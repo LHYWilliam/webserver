@@ -74,8 +74,8 @@ pub async fn chat(
                     Message::Text(message) => {
                         socket_message_text_handler(
                             user.clone(),
-                            message.to_string(),
                             state.clone(),
+                            message.to_string(),
                         )
                         .await;
                     }
@@ -104,8 +104,9 @@ pub async fn chat(
     })
 }
 
-async fn socket_message_text_handler(user: Arc<User>, message: String, state: Arc<AppState>) {
+async fn socket_message_text_handler(user: Arc<User>, state: Arc<AppState>, message: String) {
     let Ok(message) = serde_json::from_str::<SocketMessage>(&message) else {
+        println!("[{:^12}] - Invalid Message\n", "WebSocket");
         return;
     };
 
@@ -121,12 +122,7 @@ async fn socket_message_text_handler(user: Arc<User>, message: String, state: Ar
                 return;
             };
 
-            if state
-                .user_rooms
-                .get(&user)
-                .map(|rooms| rooms.contains(&room))
-                .unwrap_or(false)
-            {
+            if is_user_in_room(&state, &user, &room) {
                 println!(
                     "[{:^12}] - user {} already in room {}\n",
                     "WebSocket", user.name, room.name
@@ -159,12 +155,7 @@ async fn socket_message_text_handler(user: Arc<User>, message: String, state: Ar
                 return;
             };
 
-            if !state
-                .user_rooms
-                .get(&user)
-                .map(|rooms| rooms.contains(&room))
-                .unwrap_or(false)
-            {
+            if !is_user_in_room(&state, &user, &room) {
                 println!(
                     "[{:^12}] - user {} not in room {}\n",
                     "WebSocket", user.name, room.name
@@ -187,12 +178,7 @@ async fn socket_message_text_handler(user: Arc<User>, message: String, state: Ar
         }
 
         SocketMessage::Content(ChannelMessage { room, message, .. }) => {
-            if !state
-                .room_users
-                .get(&room)
-                .map(|users| users.contains(&user))
-                .unwrap_or(false)
-            {
+            if !is_user_in_room(&state, &user, &room) {
                 println!(
                     "[{:^12}] - user {} not in room {}\n",
                     "WebSocket", user.name, room.name
@@ -266,4 +252,12 @@ impl std::hash::Hash for User {
         self.name.hash(state);
         self.addr.hash(state);
     }
+}
+
+fn is_user_in_room(state: &AppState, user: &User, room: &Room) -> bool {
+    state
+        .user_rooms
+        .get(user)
+        .map(|rooms| rooms.contains(room))
+        .unwrap_or(false)
 }
