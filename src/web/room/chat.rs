@@ -21,10 +21,10 @@ use super::{
     message::{ChannelMessage, SocketMessage},
 };
 
-pub type Users = Arc<DashSet<Arc<User>>>;
-pub type Rooms = Arc<DashSet<Arc<Room>>>;
-pub type UserRooms = Arc<DashMap<Arc<User>, DashSet<Arc<Room>>>>;
-pub type RoomUsers = Arc<DashMap<Arc<Room>, DashSet<Arc<User>>>>;
+pub type Users = DashSet<Arc<User>>;
+pub type Rooms = DashSet<Arc<Room>>;
+pub type UserRooms = DashMap<Arc<User>, DashSet<Arc<Room>>>;
+pub type RoomUsers = DashMap<Arc<Room>, DashSet<Arc<User>>>;
 
 #[derive(Clone)]
 pub struct User {
@@ -45,19 +45,26 @@ pub async fn chat(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| async move {
-        let username = cookies.get("user").unwrap().value().to_string();
-        let user = state
+        let Some(username) = cookies.get("user").map(|cookie| cookie.value().to_string()) else {
+            println!("[{:^12}] - Invalid Cookie\n", "WebSocket");
+            return;
+        };
+
+        let Some(user) = state
             .users
             .iter()
             .find(|user| user.name == username)
-            .unwrap()
-            .clone();
+            .map(|user| user.clone())
+        else {
+            println!("[{:^12}] - user {} not found\n", "WebSocket", username);
+            return;
+        };
 
         let (mut socket_tx, mut socket_rx) = socket.split();
         let mut channel_receiver = user.sender.subscribe();
 
         println!(
-            "[{:^12}] - socket {} {} connect",
+            "[{:^12}] - socket {} {} connect\n",
             "WebSocket", user.name, user.addr
         );
 
@@ -104,12 +111,15 @@ async fn socket_message_text_handler(user: Arc<User>, message: String, state: Ar
 
     let message = match message {
         SocketMessage::Join(name) => {
-            let room = state
+            let Some(room) = state
                 .rooms
                 .iter()
                 .find(|room| room.name == name)
-                .unwrap()
-                .clone();
+                .map(|room| room.clone())
+            else {
+                println!("[{:^12}] - room {} not found\n", "WebSocket", name);
+                return;
+            };
 
             state.user_rooms.entry(user.clone()).and_modify(|rooms| {
                 rooms.insert(room.clone());
@@ -126,12 +136,15 @@ async fn socket_message_text_handler(user: Arc<User>, message: String, state: Ar
         }
 
         SocketMessage::Leave(name) => {
-            let room = state
+            let Some(room) = state
                 .rooms
                 .iter()
                 .find(|room| room.name == name)
-                .unwrap()
-                .clone();
+                .map(|room| room.clone())
+            else {
+                println!("[{:^12}] - room {} not found\n", "WebSocket", name);
+                return;
+            };
 
             state.user_rooms.entry(user.clone()).and_modify(|rooms| {
                 rooms.remove(&room);
@@ -147,11 +160,22 @@ async fn socket_message_text_handler(user: Arc<User>, message: String, state: Ar
             })
         }
 
-        SocketMessage::Content(ChannelMessage { room, message, .. }) => Arc::new(ChannelMessage {
-            room,
-            from: Some(user.name.clone()),
-            message,
-        }),
+        SocketMessage::Content(ChannelMessage { room, message, .. }) => {
+            if !state
+                .room_users
+                .get(&room)
+                .map(|users| users.contains(&user))
+                .unwrap_or(false)
+            {
+                return;
+            };
+
+            Arc::new(ChannelMessage {
+                room,
+                from: Some(user.name.clone()),
+                message,
+            })
+        }
     };
 
     state
@@ -179,11 +203,13 @@ async fn socket_message_close_handler(user: Arc<User>, state: Arc<AppState>) {
                 });
             });
         });
+    });
 
-        state.user_rooms.remove(&user);
-        state.room_users.iter().for_each(|room| {
-            room.value().remove(&user);
-        });
+    state.user_rooms.entry(user.clone()).and_modify(|rooms| {
+        rooms.clear();
+    });
+    state.room_users.iter().for_each(|room| {
+        room.value().remove(&user);
     });
 }
 

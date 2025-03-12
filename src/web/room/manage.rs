@@ -69,8 +69,8 @@ pub struct DeleteUserPayload {
 
 pub async fn delete_user(
     State(state): State<Arc<AppState>>,
-    Query(payload): Query<DeleteUserPayload>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Query(payload): Query<DeleteUserPayload>,
 ) -> Result<impl IntoResponse> {
     println!("[{:^12}] - handl delete /chat/user", "Handler");
 
@@ -86,6 +86,9 @@ pub async fn delete_user(
         .user_rooms
         .remove(&user)
         .ok_or(RoomError::UserNotFound)?;
+    state.room_users.iter().for_each(|entry| {
+        entry.value().remove(&user);
+    });
 
     Ok((
         StatusCode::OK,
@@ -135,36 +138,23 @@ pub async fn delete_room(
 ) -> Result<impl IntoResponse> {
     println!("[{:^12}] - handl delete /chat/room", "Handler");
 
-    let room = Room { name: payload.name };
+    let room = state
+        .rooms
+        .iter()
+        .find(|room| room.name == payload.name)
+        .ok_or(RoomError::RoomNotFound)?
+        .clone();
 
     state.rooms.remove(&room).ok_or(RoomError::RoomNotFound)?;
     state
         .room_users
         .remove(&room)
         .ok_or(RoomError::RoomNotFound)?;
+    state.user_rooms.iter().for_each(|entry| {
+        entry.value().remove(&room);
+    });
 
     Ok((StatusCode::OK, Json(room)))
-}
-
-pub async fn list_room_users(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl get /chat/room_users", "Handler");
-
-    let room_users = state
-        .room_users
-        .iter()
-        .map(|entry| {
-            (
-                entry.key().name.clone(),
-                entry
-                    .value()
-                    .iter()
-                    .map(|user| user.name.clone())
-                    .collect::<Vec<String>>(),
-            )
-        })
-        .collect::<HashMap<String, Vec<String>>>();
-
-    Ok(Json(room_users))
 }
 
 pub async fn list_user_rooms(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
@@ -186,4 +176,25 @@ pub async fn list_user_rooms(State(state): State<Arc<AppState>>) -> Result<impl 
         .collect::<HashMap<String, Vec<String>>>();
 
     Ok(Json(user_rooms))
+}
+
+pub async fn list_room_users(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
+    println!("[{:^12}] - handl get /chat/room_users", "Handler");
+
+    let room_users = state
+        .room_users
+        .iter()
+        .map(|entry| {
+            (
+                entry.key().name.clone(),
+                entry
+                    .value()
+                    .iter()
+                    .map(|user| user.name.clone())
+                    .collect::<Vec<String>>(),
+            )
+        })
+        .collect::<HashMap<String, Vec<String>>>();
+
+    Ok(Json(room_users))
 }
