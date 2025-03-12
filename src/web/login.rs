@@ -45,7 +45,7 @@ async fn login(
 
     let claims = Claims {
         sub: payload.username.clone(),
-        exp: (Utc::now() + Duration::minutes(1)).timestamp() as usize,
+        exp: (Utc::now() + Duration::days(1)).timestamp() as usize,
     };
 
     let token = jsonwebtoken::encode(

@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -13,7 +13,7 @@ pub enum SocketMessage {
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct ChannelMessage {
-    pub room: Room,
-    pub from: Option<SocketAddr>,
+    pub room: Arc<Room>,
+    pub from: Option<String>,
     pub message: String,
 }

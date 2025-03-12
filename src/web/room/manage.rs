@@ -1,19 +1,153 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::{ConnectInfo, Query, State},
     http::StatusCode,
     response::IntoResponse,
 };
 use dashmap::DashSet;
 use serde::Deserialize;
+use serde_json::json;
+use tokio::sync::broadcast;
 
-use super::{AppState, chat::Room};
-use crate::error::{DatabaseError, Result};
+use super::{
+    AppState,
+    chat::{Room, User},
+    message::ChannelMessage,
+};
+use crate::error::{Result, RoomError};
+
+#[derive(Deserialize)]
+pub struct CreateUserPayload {
+    name: String,
+}
+
+pub async fn create_user(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Json(payload): Json<CreateUserPayload>,
+) -> Result<impl IntoResponse> {
+    println!("[{:^12}] - handl post /chat/user", "Handler");
+
+    let (sender, _) = broadcast::channel::<Arc<ChannelMessage>>(128);
+
+    let user = Arc::new(User {
+        name: payload.name,
+        addr: addr.to_string(),
+        sender,
+    });
+
+    state.users.insert(user.clone());
+    state.user_rooms.insert(user.clone(), DashSet::new());
+
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "name": user.name,
+            "addr": user.addr,
+        })),
+    ))
+}
+
+pub async fn list_user(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
+    println!("[{:^12}] - handl get /chat/user", "Handler");
+
+    let users = state
+        .users
+        .iter()
+        .map(|user| user.name.clone())
+        .collect::<Vec<String>>();
+
+    Ok(Json(users))
+}
+
+#[derive(Deserialize)]
+pub struct DeleteUserPayload {
+    name: String,
+}
+
+pub async fn delete_user(
+    State(state): State<Arc<AppState>>,
+    Query(payload): Query<DeleteUserPayload>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> Result<impl IntoResponse> {
+    println!("[{:^12}] - handl delete /chat/user", "Handler");
+
+    let user = state
+        .users
+        .iter()
+        .find(|user| user.name == payload.name && user.addr == addr.to_string())
+        .ok_or(RoomError::UserNotFound)?
+        .clone();
+
+    state.users.remove(&user).ok_or(RoomError::UserNotFound)?;
+    state
+        .user_rooms
+        .remove(&user)
+        .ok_or(RoomError::UserNotFound)?;
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "name": user.name, "addr": user.addr })),
+    ))
+}
+
+#[derive(Deserialize)]
+pub struct CreateRoomPayload {
+    name: String,
+}
+
+pub async fn create_room(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<CreateRoomPayload>,
+) -> Result<impl IntoResponse> {
+    println!("[{:^12}] - handl post /chat/room", "Handler");
+
+    let room = Arc::new(Room { name: payload.name });
+
+    state.rooms.insert(room.clone());
+    state.room_users.insert(room.clone(), DashSet::new());
+
+    Ok((StatusCode::CREATED, Json(room)))
+}
+
+pub async fn list_rooms(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
+    println!("[{:^12}] - handl get /chat/room", "Handler");
+
+    let rooms = state
+        .rooms
+        .iter()
+        .map(|room| room.name.clone())
+        .collect::<Vec<String>>();
+
+    Ok(Json(rooms))
+}
+
+#[derive(Deserialize)]
+pub struct DeleteRoomPayload {
+    name: String,
+}
+
+pub async fn delete_room(
+    State(state): State<Arc<AppState>>,
+    Query(payload): Query<DeleteRoomPayload>,
+) -> Result<impl IntoResponse> {
+    println!("[{:^12}] - handl delete /chat/room", "Handler");
+
+    let room = Room { name: payload.name };
+
+    state.rooms.remove(&room).ok_or(RoomError::RoomNotFound)?;
+    state
+        .room_users
+        .remove(&room)
+        .ok_or(RoomError::RoomNotFound)?;
+
+    Ok((StatusCode::OK, Json(room)))
+}
 
 pub async fn list_room_users(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl get /chat/user", "Handler");
+    println!("[{:^12}] - handl get /chat/room_users", "Handler");
 
     let room_users = state
         .room_users
@@ -34,7 +168,7 @@ pub async fn list_room_users(State(state): State<Arc<AppState>>) -> Result<impl 
 }
 
 pub async fn list_user_rooms(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl get /chat/room", "Handler");
+    println!("[{:^12}] - handl get /chat/user_rooms", "Handler");
 
     let user_rooms = state
         .user_rooms
@@ -52,46 +186,4 @@ pub async fn list_user_rooms(State(state): State<Arc<AppState>>) -> Result<impl 
         .collect::<HashMap<String, Vec<String>>>();
 
     Ok(Json(user_rooms))
-}
-
-#[derive(Deserialize)]
-pub struct PostPayload {
-    name: String,
-}
-
-pub async fn create(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<PostPayload>,
-) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl post /chat/manage", "Handler");
-
-    state.room_users.insert(
-        Room {
-            name: payload.name.clone(),
-        },
-        DashSet::new(),
-    );
-
-    Ok((StatusCode::CREATED, Json(Room { name: payload.name })))
-}
-
-#[derive(Deserialize)]
-pub struct DeletePayload {
-    name: String,
-}
-
-pub async fn delete(
-    State(state): State<Arc<AppState>>,
-    Query(payload): Query<DeletePayload>,
-) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl delete /chat/manage", "Handler");
-
-    state
-        .room_users
-        .remove(&Room {
-            name: payload.name.clone(),
-        })
-        .ok_or(DatabaseError::DeleteFailed)?;
-
-    Ok((StatusCode::OK, Json(Room { name: payload.name })))
 }
