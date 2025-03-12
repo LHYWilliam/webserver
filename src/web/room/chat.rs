@@ -121,6 +121,19 @@ async fn socket_message_text_handler(user: Arc<User>, message: String, state: Ar
                 return;
             };
 
+            if state
+                .user_rooms
+                .get(&user)
+                .map(|rooms| rooms.contains(&room))
+                .unwrap_or(false)
+            {
+                println!(
+                    "[{:^12}] - user {} already in room {}\n",
+                    "WebSocket", user.name, room.name
+                );
+                return;
+            };
+
             state.user_rooms.entry(user.clone()).and_modify(|rooms| {
                 rooms.insert(room.clone());
             });
@@ -146,6 +159,19 @@ async fn socket_message_text_handler(user: Arc<User>, message: String, state: Ar
                 return;
             };
 
+            if !state
+                .user_rooms
+                .get(&user)
+                .map(|rooms| rooms.contains(&room))
+                .unwrap_or(false)
+            {
+                println!(
+                    "[{:^12}] - user {} not in room {}\n",
+                    "WebSocket", user.name, room.name
+                );
+                return;
+            };
+
             state.user_rooms.entry(user.clone()).and_modify(|rooms| {
                 rooms.remove(&room);
             });
@@ -167,6 +193,10 @@ async fn socket_message_text_handler(user: Arc<User>, message: String, state: Ar
                 .map(|users| users.contains(&user))
                 .unwrap_or(false)
             {
+                println!(
+                    "[{:^12}] - user {} not in room {}\n",
+                    "WebSocket", user.name, room.name
+                );
                 return;
             };
 
