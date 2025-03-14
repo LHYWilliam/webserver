@@ -1,8 +1,8 @@
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use axum::{
     Json,
-    extract::{ConnectInfo, Query, State},
+    extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
 };
@@ -26,7 +26,6 @@ pub struct CreateUserPayload {
 
 pub async fn create_user(
     State(state): State<Arc<AppState>>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(payload): Json<CreateUserPayload>,
 ) -> Result<impl IntoResponse> {
     info!("[{:^12}] - handl post /chat/user", "Handler");
@@ -35,7 +34,6 @@ pub async fn create_user(
 
     let user = Arc::new(User {
         name: payload.name,
-        addr: addr.to_string(),
         sender,
     });
 
@@ -46,7 +44,6 @@ pub async fn create_user(
         StatusCode::CREATED,
         Json(json!({
             "name": user.name,
-            "addr": user.addr,
         })),
     ))
 }
@@ -70,7 +67,6 @@ pub struct DeleteUserPayload {
 
 pub async fn delete_user(
     State(state): State<Arc<AppState>>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Query(payload): Query<DeleteUserPayload>,
 ) -> Result<impl IntoResponse> {
     info!("[{:^12}] - handl delete /chat/user", "Handler");
@@ -78,7 +74,7 @@ pub async fn delete_user(
     let user = state
         .users
         .iter()
-        .find(|user| user.name == payload.name && user.addr == addr.to_string())
+        .find(|user| user.name == payload.name)
         .ok_or(RoomError::UserNotFound)?
         .clone();
 
@@ -91,10 +87,7 @@ pub async fn delete_user(
         entry.value().remove(&user);
     });
 
-    Ok((
-        StatusCode::OK,
-        Json(json!({ "name": user.name, "addr": user.addr })),
-    ))
+    Ok((StatusCode::OK, Json(json!({ "name": user.name }))))
 }
 
 #[derive(Deserialize)]

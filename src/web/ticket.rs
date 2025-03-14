@@ -27,7 +27,7 @@ pub fn router(pool: Pool<Sqlite>) -> Router {
         .route("/ticket", routing::get(list))
         .route("/ticket", routing::delete(delete))
         .layer(middleware::from_extractor_with_state::<Cookies, Pool<Sqlite>>(pool.clone()))
-        .layer(middleware::from_extractor_with_state::<Claims, Pool<Sqlite>>(pool.clone()))
+        .layer(middleware::from_extractor::<Claims>())
         .with_state(pool.clone())
 }
 

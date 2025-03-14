@@ -7,12 +7,13 @@ use std::sync::Arc;
 use axum::{Router, middleware, routing};
 
 use crate::middleware::jwt::Claims;
-use chat::{RoomUsers, Rooms, UserRooms, Users};
+use chat::{ConnectedUsers, RoomUsers, Rooms, UserRooms, Users};
 
 #[derive(Default)]
 struct AppState {
     users: Users,
     rooms: Rooms,
+    connected_users: ConnectedUsers,
     user_rooms: UserRooms,
     room_users: RoomUsers,
 }

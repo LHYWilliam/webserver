@@ -1,8 +1,8 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::sync::Arc;
 
 use axum::{
     extract::{
-        ConnectInfo, State, WebSocketUpgrade,
+        State, WebSocketUpgrade,
         ws::{Message, WebSocket},
     },
     response::IntoResponse,
@@ -24,13 +24,13 @@ use super::{
 
 pub type Users = DashSet<Arc<User>>;
 pub type Rooms = DashSet<Arc<Room>>;
+pub type ConnectedUsers = DashSet<Arc<User>>;
 pub type UserRooms = DashMap<Arc<User>, DashSet<Arc<Room>>>;
 pub type RoomUsers = DashMap<Arc<Room>, DashSet<Arc<User>>>;
 
 #[derive(Clone)]
 pub struct User {
     pub name: String,
-    pub addr: String,
     pub sender: Sender<Arc<ChannelMessage>>,
 }
 
@@ -43,7 +43,6 @@ pub async fn chat(
     cookies: Cookies,
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| async move {
         let Some(username) = cookies.get("user").map(|cookie| cookie.value().to_string()) else {
@@ -57,32 +56,40 @@ pub async fn chat(
             .find(|user| user.name == username)
             .map(|user| user.clone())
         else {
-            warn!("[{:^12}] - user {} not found", "WebSocket", username);
+            error!("[{:^12}] - user {} not found", "WebSocket", username);
+            return;
+        };
+
+        if state.connected_users.contains(&user) {
+            error!(
+                "[{:^12}] - user {} already connected",
+                "WebSocket", user.name
+            );
             return;
         };
 
         let (mut socket_tx, mut socket_rx) = socket.split();
         let mut channel_receiver = user.sender.subscribe();
 
-        info!(
-            "[{:^12}] - socket {} {} connect",
-            "WebSocket", user.name, user.addr
-        );
+        state.connected_users.insert(user.clone());
+        info!("[{:^12}] - user {} connect", "WebSocket", user.name,);
 
+        let user_clone = user.clone();
+        let state_clone = state.clone();
         let mut receive_task = tokio::spawn(async move {
             while let Some(Ok(message)) = socket_rx.next().await {
                 match message {
                     Message::Text(message) => {
                         socket_message_text_handler(
-                            user.clone(),
-                            state.clone(),
+                            user_clone.clone(),
+                            state_clone.clone(),
                             message.to_string(),
                         )
                         .await;
                     }
 
                     Message::Close(_) => {
-                        socket_message_close_handler(user.clone(), state.clone()).await
+                        socket_message_close_handler(user_clone.clone(), state_clone.clone()).await
                     }
 
                     _ => {}
@@ -101,7 +108,8 @@ pub async fn chat(
             _ = &mut receive_task => { send_task.abort() },
         };
 
-        info!("[{:^12}] - socket {} disconnect", "WebSocket", addr);
+        state.connected_users.remove(&user);
+        info!("[{:^12}] - user {} disconnect", "WebSocket", user.name);
     })
 }
 
@@ -119,7 +127,7 @@ async fn socket_message_text_handler(user: Arc<User>, state: Arc<AppState>, mess
                 .find(|room| room.name == name)
                 .map(|room| room.clone())
             else {
-                warn!("[{:^12}] - room {} not found", "WebSocket", name);
+                error!("[{:^12}] - room {} not found", "WebSocket", name);
                 return;
             };
 
@@ -152,7 +160,7 @@ async fn socket_message_text_handler(user: Arc<User>, state: Arc<AppState>, mess
                 .find(|room| room.name == name)
                 .map(|room| room.clone())
             else {
-                warn!("[{:^12}] - room {} not found", "WebSocket", name);
+                error!("[{:^12}] - room {} not found", "WebSocket", name);
                 return;
             };
 
@@ -194,6 +202,8 @@ async fn socket_message_text_handler(user: Arc<User>, state: Arc<AppState>, mess
             })
         }
     };
+
+    info!("[{:^12}] - {:?}", "WebSocket", message);
 
     state
         .room_users
@@ -252,7 +262,7 @@ async fn channel_message_handler(
 
 impl PartialEq for User {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.addr == other.addr
+        self.name == other.name
     }
 }
 
@@ -261,7 +271,6 @@ impl Eq for User {}
 impl std::hash::Hash for User {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.name.hash(state);
-        self.addr.hash(state);
     }
 }
 
