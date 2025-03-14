@@ -59,7 +59,7 @@ pub async fn list_user(State(state): State<Arc<AppState>>) -> Result<impl IntoRe
         .map(|user| user.name.clone())
         .collect::<Vec<String>>();
 
-    Ok(Json(users))
+    Ok((StatusCode::OK, Json(users)))
 }
 
 #[derive(Deserialize)]
@@ -124,7 +124,7 @@ pub async fn list_rooms(State(state): State<Arc<AppState>>) -> Result<impl IntoR
         .map(|room| room.name.clone())
         .collect::<Vec<String>>();
 
-    Ok(Json(rooms))
+    Ok((StatusCode::OK, Json(rooms)))
 }
 
 #[derive(Deserialize)]
@@ -175,7 +175,7 @@ pub async fn list_user_rooms(State(state): State<Arc<AppState>>) -> Result<impl 
         })
         .collect::<HashMap<String, Vec<String>>>();
 
-    Ok(Json(user_rooms))
+    Ok((StatusCode::OK, Json(user_rooms)))
 }
 
 pub async fn list_room_users(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
@@ -196,5 +196,5 @@ pub async fn list_room_users(State(state): State<Arc<AppState>>) -> Result<impl 
         })
         .collect::<HashMap<String, Vec<String>>>();
 
-    Ok(Json(room_users))
+    Ok((StatusCode::OK, Json(room_users)))
 }
