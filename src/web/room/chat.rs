@@ -15,6 +15,7 @@ use futures_util::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::Sender;
 use tower_cookies::Cookies;
+use tracing::{error, info, warn};
 
 use super::{
     AppState,
@@ -46,7 +47,7 @@ pub async fn chat(
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| async move {
         let Some(username) = cookies.get("user").map(|cookie| cookie.value().to_string()) else {
-            println!("[{:^12}] - Invalid Cookie", "WebSocket");
+            error!("[{:^12}] - Invalid Cookie", "WebSocket");
             return;
         };
 
@@ -56,14 +57,14 @@ pub async fn chat(
             .find(|user| user.name == username)
             .map(|user| user.clone())
         else {
-            println!("[{:^12}] - user {} not found", "WebSocket", username);
+            warn!("[{:^12}] - user {} not found", "WebSocket", username);
             return;
         };
 
         let (mut socket_tx, mut socket_rx) = socket.split();
         let mut channel_receiver = user.sender.subscribe();
 
-        println!(
+        info!(
             "[{:^12}] - socket {} {} connect",
             "WebSocket", user.name, user.addr
         );
@@ -100,13 +101,13 @@ pub async fn chat(
             _ = &mut receive_task => { send_task.abort() },
         };
 
-        println!("[{:^12}] - socket {} disconnect", "WebSocket", addr);
+        info!("[{:^12}] - socket {} disconnect", "WebSocket", addr);
     })
 }
 
 async fn socket_message_text_handler(user: Arc<User>, state: Arc<AppState>, message: String) {
     let Ok(message) = serde_json::from_str::<SocketMessage>(&message) else {
-        println!("[{:^12}] - Invalid Message", "WebSocket");
+        error!("[{:^12}] - Invalid Message", "WebSocket");
         return;
     };
 
@@ -118,12 +119,12 @@ async fn socket_message_text_handler(user: Arc<User>, state: Arc<AppState>, mess
                 .find(|room| room.name == name)
                 .map(|room| room.clone())
             else {
-                println!("[{:^12}] - room {} not found", "WebSocket", name);
+                warn!("[{:^12}] - room {} not found", "WebSocket", name);
                 return;
             };
 
             if is_user_in_room(&state, &user, &room) {
-                println!(
+                warn!(
                     "[{:^12}] - user {} already in room {}",
                     "WebSocket", user.name, room.name
                 );
@@ -151,12 +152,12 @@ async fn socket_message_text_handler(user: Arc<User>, state: Arc<AppState>, mess
                 .find(|room| room.name == name)
                 .map(|room| room.clone())
             else {
-                println!("[{:^12}] - room {} not found", "WebSocket", name);
+                warn!("[{:^12}] - room {} not found", "WebSocket", name);
                 return;
             };
 
             if !is_user_in_room(&state, &user, &room) {
-                println!(
+                warn!(
                     "[{:^12}] - user {} not in room {}",
                     "WebSocket", user.name, room.name
                 );
@@ -179,7 +180,7 @@ async fn socket_message_text_handler(user: Arc<User>, state: Arc<AppState>, mess
 
         SocketMessage::Content(ChannelMessage { room, message, .. }) => {
             if !is_user_in_room(&state, &user, &room) {
-                println!(
+                warn!(
                     "[{:^12}] - user {} not in room {}",
                     "WebSocket", user.name, room.name
                 );
@@ -200,7 +201,7 @@ async fn socket_message_text_handler(user: Arc<User>, state: Arc<AppState>, mess
         .and_modify(|users| {
             users.iter().for_each(|user| {
                 if let Err(e) = user.sender.send(message.clone()) {
-                    println!("[{:^12}] - Send Message Error {}", "WebSocket", e);
+                    error!("[{:^12}] - Send Message Error {}", "WebSocket", e);
                 };
             })
         });
@@ -218,7 +219,7 @@ async fn socket_message_close_handler(user: Arc<User>, state: Arc<AppState>) {
             state.room_users.entry(room.clone()).and_modify(|users| {
                 users.iter().for_each(|user| {
                     if let Err(e) = user.sender.send(message.clone()) {
-                        println!("[{:^12}] - Send Message Error {}", "WebSocket", e);
+                        error!("[{:^12}] - Send Message Error {}", "WebSocket", e);
                     };
                 });
             });
@@ -238,14 +239,14 @@ async fn channel_message_handler(
     tx: &mut SplitSink<WebSocket, Message>,
 ) {
     let Ok(message) = serde_json::to_string(&message) else {
-        println!("[{:^12}] - Invalid Message", "WebSocket");
+        error!("[{:^12}] - Invalid Message", "WebSocket");
         return;
     };
 
     let message = Message::Text(message.into());
 
     if let Err(e) = tx.send(message).await {
-        println!("[{:^12}] - Send Message Error {}", "WebSocket", e);
+        error!("[{:^12}] - Send Message Error {}", "WebSocket", e);
     }
 }
 

@@ -5,6 +5,7 @@ use axum_extra::{
 };
 use jsonwebtoken::{DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use crate::error::{AuthError, Error, Result};
 
@@ -21,7 +22,7 @@ where
     type Rejection = Error;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self> {
-        println!("[{:^12}] - jwt", "Middleware");
+        info!("[{:^12}] - jwt", "Middleware");
 
         let TypedHeader(Authorization(bearer)) =
             TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state)

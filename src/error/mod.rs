@@ -14,6 +14,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use thiserror::Error;
+use tracing::error;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -35,7 +36,7 @@ pub enum Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        println!("[{:^12}] - {self:?}", "Error");
+        error!("[{:^12}] - {self:?}", "Error");
 
         let (status, message) = match self {
             Error::Auth(e) => (e.status_code(), e.to_string()),

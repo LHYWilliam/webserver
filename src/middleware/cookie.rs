@@ -5,6 +5,7 @@ use axum::{
     http::request::Parts,
 };
 use sqlx::{Pool, Sqlite};
+use tracing::info;
 
 use crate::error::{AuthError, Error, Result};
 
@@ -26,7 +27,7 @@ where
     type Rejection = Error;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self> {
-        println!("[{:^12}] - Cookie", "Middleware");
+        info!("[{:^12}] - Cookie", "Middleware");
 
         let cookies = tower_cookies::Cookies::from_request_parts(parts, state)
             .await

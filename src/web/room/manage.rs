@@ -10,6 +10,7 @@ use dashmap::DashSet;
 use serde::Deserialize;
 use serde_json::json;
 use tokio::sync::broadcast;
+use tracing::info;
 
 use super::{
     AppState,
@@ -28,7 +29,7 @@ pub async fn create_user(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(payload): Json<CreateUserPayload>,
 ) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl post /chat/user", "Handler");
+    info!("[{:^12}] - handl post /chat/user", "Handler");
 
     let (sender, _) = broadcast::channel::<Arc<ChannelMessage>>(128);
 
@@ -51,7 +52,7 @@ pub async fn create_user(
 }
 
 pub async fn list_user(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl get /chat/user", "Handler");
+    info!("[{:^12}] - handl get /chat/user", "Handler");
 
     let users = state
         .users
@@ -72,7 +73,7 @@ pub async fn delete_user(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Query(payload): Query<DeleteUserPayload>,
 ) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl delete /chat/user", "Handler");
+    info!("[{:^12}] - handl delete /chat/user", "Handler");
 
     let user = state
         .users
@@ -105,7 +106,7 @@ pub async fn create_room(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateRoomPayload>,
 ) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl post /chat/room", "Handler");
+    info!("[{:^12}] - handl post /chat/room", "Handler");
 
     let room = Arc::new(Room { name: payload.name });
 
@@ -116,7 +117,7 @@ pub async fn create_room(
 }
 
 pub async fn list_rooms(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl get /chat/room", "Handler");
+    info!("[{:^12}] - handl get /chat/room", "Handler");
 
     let rooms = state
         .rooms
@@ -136,7 +137,7 @@ pub async fn delete_room(
     State(state): State<Arc<AppState>>,
     Query(payload): Query<DeleteRoomPayload>,
 ) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl delete /chat/room", "Handler");
+    info!("[{:^12}] - handl delete /chat/room", "Handler");
 
     let room = state
         .rooms
@@ -158,7 +159,7 @@ pub async fn delete_room(
 }
 
 pub async fn list_user_rooms(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl get /chat/user_rooms", "Handler");
+    info!("[{:^12}] - handl get /chat/user_rooms", "Handler");
 
     let user_rooms = state
         .user_rooms
@@ -179,7 +180,7 @@ pub async fn list_user_rooms(State(state): State<Arc<AppState>>) -> Result<impl 
 }
 
 pub async fn list_room_users(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handl get /chat/room_users", "Handler");
+    info!("[{:^12}] - handl get /chat/room_users", "Handler");
 
     let room_users = state
         .room_users

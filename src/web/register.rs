@@ -1,6 +1,7 @@
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing};
 use serde::Deserialize;
 use sqlx::{Pool, Sqlite};
+use tracing::info;
 
 use crate::error::{DatabaseError, Result};
 
@@ -20,7 +21,7 @@ async fn register(
     State(pool): State<Pool<Sqlite>>,
     Json(payload): Json<RegisterPayload>,
 ) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handle post /register", "Handler");
+    info!("[{:^12}] - handle post /register", "Handler");
 
     let result = sqlx::query!(
         r#"

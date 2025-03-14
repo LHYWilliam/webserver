@@ -4,6 +4,7 @@ use jsonwebtoken::{EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite};
 use tower_cookies::{Cookie, Cookies};
+use tracing::info;
 
 use crate::{
     error::{AuthError, Result},
@@ -25,7 +26,7 @@ async fn login(
     State(pool): State<Pool<Sqlite>>,
     Json(payload): Json<LoginPayload>,
 ) -> Result<impl IntoResponse> {
-    println!("[{:^12}] - handle post /login", "Handler");
+    info!("[{:^12}] - handle post /login", "Handler");
 
     sqlx::query!(
         r#"
