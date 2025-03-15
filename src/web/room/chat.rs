@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use axum::{
+    Extension,
     extract::{
         State, WebSocketUpgrade,
         ws::{Message, WebSocket},
@@ -14,13 +15,13 @@ use futures_util::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::Sender;
-use tower_cookies::Cookies;
 use tracing::{error, info, warn};
 
 use super::{
     AppState,
     message::{ChannelMessage, SocketMessage},
 };
+use crate::middleware::jwt::Claims;
 
 pub type Users = DashSet<Arc<User>>;
 pub type Rooms = DashSet<Arc<Room>>;
@@ -40,15 +41,12 @@ pub struct Room {
 }
 
 pub async fn chat(
-    cookies: Cookies,
     ws: WebSocketUpgrade,
+    Extension(claims): Extension<Claims>,
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| async move {
-        let Some(username) = cookies.get("user").map(|cookie| cookie.value().to_string()) else {
-            error!("[{:^12}] ━ Invalid Cookie", "WebSocket");
-            return;
-        };
+        let username = claims.sub;
 
         let Some(user) = state
             .users

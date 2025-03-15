@@ -31,6 +31,6 @@ pub fn router() -> Router {
         .route("/chat/room", routing::delete(manage::delete_room))
         .route("/chat/user_rooms", routing::get(manage::list_user_rooms))
         .route("/chat/room_users", routing::get(manage::list_room_users))
-        .layer(middleware::from_extractor::<Claims>())
+        .route_layer(middleware::from_extractor::<Claims>())
         .with_state(state.clone())
 }

@@ -9,7 +9,7 @@ use tracing::info;
 
 use crate::error::{AuthError, Error, Result};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Claims {
     pub sub: String,
     pub exp: usize,
@@ -24,17 +24,23 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self> {
         info!("[{:^12}] ┃ jwt", "Middleware");
 
+        if let Some(claims) = parts.extensions.get::<Claims>() {
+            return Ok(claims.clone());
+        };
+
         let TypedHeader(Authorization(bearer)) =
             TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state)
                 .await
                 .map_err(|_| AuthError::InvalidToken)?;
 
-        let token_data = jsonwebtoken::decode(
+        let token_data = jsonwebtoken::decode::<Claims>(
             bearer.token(),
             &DecodingKey::from_secret(b"secret"),
             &Validation::default(),
         )
         .map_err(|_| AuthError::InvalidToken)?;
+
+        parts.extensions.insert(token_data.claims.clone());
 
         Ok(token_data.claims)
     }
