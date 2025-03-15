@@ -21,7 +21,7 @@ async fn register(
     State(pool): State<Pool<Sqlite>>,
     Json(payload): Json<RegisterPayload>,
 ) -> Result<impl IntoResponse> {
-    info!("[{:^12}] - handle post /register", "Handler");
+    info!("[{:^12}] ┃ handle post /register", "Handler");
 
     let result = sqlx::query!(
         r#"

@@ -36,7 +36,7 @@ pub enum Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        error!("[{:^12}] - {self:?}", "Error");
+        error!("[{:^12}] ┃ {self:?}", "Error");
 
         let (status, message) = match self {
             Error::Auth(e) => (e.status_code(), e.to_string()),

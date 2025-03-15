@@ -42,7 +42,7 @@ async fn main() -> result::Result<(), Box<dyn std::error::Error>> {
         .into_make_service_with_connect_info::<SocketAddr>();
 
     let listener = TcpListener::bind("127.0.0.1:3000").await?;
-    info!("[{:^12}] - {}", "Listener", listener.local_addr()?);
+    info!("[{:^12}] ━ {}", "Listener", listener.local_addr()?);
 
     axum::serve(listener, app).await?;
 
@@ -50,7 +50,7 @@ async fn main() -> result::Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn handler_root() -> impl IntoResponse {
-    info!("[{:^12}] - handle get /", "Handler");
+    info!("[{:^12}] ┃ handle get /", "Handler");
 
     (StatusCode::OK, "Hello, World!")
 }
@@ -60,7 +60,7 @@ async fn requset_input(requset: Request<Body>) -> Request<Body> {
     let uri = requset.uri();
 
     info!(
-        "[{:^12}] - ====== method: {:?}, uri: {:?}",
+        "[{:^12}] ┏━━━ method: {:?}, uri: {:?}",
         "Input", method, uri
     );
 
@@ -81,7 +81,7 @@ async fn response_output(response: Response) -> Result<impl IntoResponse> {
 
     let body = String::from_utf8_lossy(&bytes);
     info!(
-        "[{:^12}] - ====== status: {}, body: {:?}",
+        "[{:^12}] ┗━━━ status: {}, body: {:?}",
         "Output", status, body
     );
 

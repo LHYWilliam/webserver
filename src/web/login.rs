@@ -26,7 +26,7 @@ async fn login(
     State(pool): State<Pool<Sqlite>>,
     Json(payload): Json<LoginPayload>,
 ) -> Result<impl IntoResponse> {
-    info!("[{:^12}] - handle post /login", "Handler");
+    info!("[{:^12}] ┃ handle post /login", "Handler");
 
     sqlx::query!(
         r#"
